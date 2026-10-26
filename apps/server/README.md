@@ -1,0 +1,230 @@
+# TenTenV 親サーバー
+
+TenTenV の親サーバーです。ログイン、プロフィール・フレンド・通知、アバターとワールドの保存と配信、インスタンスの管理と参加判定、P2P 接続の仲介（シグナリング）、P2P が張れない相手への中継、通報・ブロック、ワールドの永続データ、インスタンス共有ファイルを受け持ちます。
+
+誰でも自分の親サーバーを立てられます。利用者はクライアントの起動時に接続先の親サーバーを選びます。
+
+- Node.js 24 以上（DB は Node 標準の `node:sqlite` を使うので、追加のデータベースは不要です）
+- 依存パッケージは `ws` と `fflate` だけです
+
+## 起動
+
+リポジトリのルートで:
+
+```sh
+npm install
+npm run dev:server          # 開発用（ファイルを変えると再起動）
+# または
+npm start -w @tentenv/server
+```
+
+初回起動時に `apps/server/data/` が作られ、署名用の鍵（Ed25519）も自動で作られます。既定では `http://localhost:8787` で待ち受けます。
+
+テスト:
+
+```sh
+npm test -w @tentenv/server
+npm run typecheck -w @tentenv/server
+```
+
+## 設定
+
+設定はデータフォルダの隣にある `server.config.json`（既定では `apps/server/server.config.json`）に書きます。ひな形は `server.config.example.json` です。ファイルがなければすべて既定値で動きます。
+
+```sh
+cp apps/server/server.config.example.json apps/server/server.config.json
+```
+
+| 項目 | 既定値 | 説明 |
+|---|---|---|
+| `name` | `"TenTenV Server"` | サーバーの名前（クライアントに表示） |
+| `description` | `""` | サーバーの説明 |
+| `termsUrl` | `null` | 利用規約の URL |
+| `publicUrl` | `""` | 外から見たこのサーバーの URL（例 `https://vr.example.com`）。ワールドやアバターのファイルの URL に使います。**公開するときは必ず設定してください**。空なら `http://localhost:<port>` |
+| `port` | `8787` | 待ち受けるポート |
+| `allowGuest` | `true` | ゲストログインを許すか |
+| `allowGuestUploads` | `true` | ゲストにアバター・ワールド・共有ファイルのアップロードを許すか。公開サーバーでは `false` を推奨 |
+| `misskey.enabled` | `true` | Misskey でのログインを使うか |
+| `misskey.allowedHosts` | `null` | ログインを許す Misskey サーバー（例 `["misskey.io"]`）。`null` ならどこでも可 |
+| `limits.avatarBytes` | 100MB | アバター（VRM）の上限 |
+| `limits.worldBytes` | 300MB | ワールドパッケージ（.ttvw）の上限（展開後の合計にも適用） |
+| `limits.instanceFileBytes` | 50MB | インスタンス共有ファイル 1 つの上限 |
+| `limits.maxInstanceCapacity` | `40` | インスタンスの定員の上限 |
+| `relay` | `true` | P2P が張れない相手への WebSocket 中継を許すか |
+| `iceServers` | Google の STUN | クライアントに渡す STUN / TURN サーバー |
+| `admins` | `[]` | 管理者（Misskey のハンドル `@name@host` か利用者 ID）。ゲストは管理者になれません |
+| `corsOrigins` | `"*"` | API を呼べるクライアントのオリジン。`"*"` か `["https://client.example"]` のような配列 |
+| `trustProxy` | `false` | リバースプロキシの `X-Forwarded-For` を信用するか（プロキシの後ろに置くときは `true`） |
+| `rateLimits.authPerMinute` | `30` | IP ごとのログインの回数（1 分あたり） |
+| `rateLimits.uploadsPerMinute` | `20` | IP ごとのアップロードの回数（1 分あたり） |
+
+環境変数でも一部を上書きできます。
+
+| 環境変数 | 説明 |
+|---|---|
+| `TTV_PORT` | 待ち受けるポート |
+| `TTV_DATA` | データフォルダ（既定 `apps/server/data`）。設定ファイルはその隣の `server.config.json` を読みます |
+| `TTV_PUBLIC_URL` | `publicUrl` |
+| `TTV_CONFIG` | 設定ファイルの場所を直接指定する |
+
+## データの置き場所
+
+```
+apps/server/
+├─ server.config.json
+└─ data/                  （git には入りません）
+   ├─ db.sqlite           利用者・フレンド・ワールド・通知などすべての表
+   ├─ db.sqlite-wal / -shm
+   ├─ keys/
+   │  ├─ ed25519.pem      参加チケットの署名鍵（秘密鍵。漏らさないこと）
+   │  └─ ed25519.pub      公開鍵（/api/info の publicKey と同じ）
+   └─ files/
+      ├─ avatars/<id>.vrm
+      ├─ thumbs/          アバターのサムネイル
+      ├─ icons/           利用者のアイコン
+      ├─ worlds/<id>/<版>/ ワールドの中身（world.json・world.js・アセット）。古い版も 10 個まで残します
+      └─ instances/<インスタンス ID>/<ファイル ID>  インスタンス共有ファイル
+```
+
+- ログインのトークンは SHA-256 にして保存し、元のトークンは保存しません（有効期限 30 日、使うたびに延長）。
+- Misskey から受け取ったアクセストークンはプロフィールを読んだらすぐ捨て、保存しません。
+- `serverId` は公開鍵の指紋です。**鍵を消すと serverId が変わり、別のサーバーとして扱われます**。
+
+## 本番での動かし方（リバースプロキシと TLS）
+
+WebXR とマイクは https でないと使えないので、公開するときは TLS を終端するリバースプロキシ（Caddy・nginx など）の後ろに置きます。設定は `publicUrl` を `https://...` にし、`trustProxy` を `true` にします。
+
+Caddy の例（証明書は自動で取得されます）:
+
+```
+vr.example.com {
+  reverse_proxy 127.0.0.1:8787
+  request_body {
+    max_size 320MB
+  }
+}
+```
+
+nginx の例:
+
+```nginx
+server {
+  listen 443 ssl http2;
+  server_name vr.example.com;
+  ssl_certificate     /etc/letsencrypt/live/vr.example.com/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/vr.example.com/privkey.pem;
+
+  client_max_body_size 320m;       # ワールドの上限より少し大きく
+  proxy_request_buffering off;     # 大きなアップロードをそのまま流す
+
+  location /ws {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 120s;
+  }
+  location / {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  }
+}
+```
+
+常駐させるには systemd などを使います:
+
+```ini
+[Unit]
+Description=TenTenV server
+After=network.target
+
+[Service]
+WorkingDirectory=/srv/tentenv
+ExecStart=/usr/bin/npm start -w @tentenv/server
+Environment=TTV_PUBLIC_URL=https://vr.example.com
+Restart=always
+User=tentenv
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## TURN サーバー（推奨）
+
+P2P（WebRTC）は、片方が厳しい NAT や会社のネットワークの中にいると繋がらないことがあります。データ（位置・チャットなど）と音声は親サーバーの WebSocket で中継されます（音声は WebCodecs の Opus に変換して送るため、対応していないブラウザでは届きません）。中継は親サーバーの回線と CPU を使い、遅延も増えるので、公開するサーバーでは [coturn](https://github.com/coturn/coturn) を立てることをおすすめします。TURN があれば、P2P が繋がらない相手とも WebRTC の音声のまま話せます。
+
+`/etc/turnserver.conf` の例:
+
+```
+listening-port=3478
+tls-listening-port=5349
+fingerprint
+lt-cred-mech
+user=tentenv:長いパスワード
+realm=vr.example.com
+cert=/etc/letsencrypt/live/vr.example.com/fullchain.pem
+pkey=/etc/letsencrypt/live/vr.example.com/privkey.pem
+no-multicast-peers
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+```
+
+`server.config.json` に追加します:
+
+```json
+"iceServers": [
+  { "urls": "stun:vr.example.com:3478" },
+  { "urls": ["turn:vr.example.com:3478", "turns:vr.example.com:5349"], "username": "tentenv", "credential": "長いパスワード" }
+]
+```
+
+この資格情報は `/api/info` でクライアントに渡されるので、TURN 専用の使い捨てのものにしてください。
+
+## Misskey ログインの設定
+
+Misskey の MiAuth を使います。親サーバーはパスワードを受け取らず、要求する権限は `read:account`（プロフィールを読む）だけです。Misskey 側でアプリの登録は不要です。
+
+1. クライアントが `POST /api/auth/misskey/start {host, callback}` を呼ぶと、親サーバーは `https://<host>/miauth/<session>?name=TenTenV&callback=...&permission=read:account` を返します。
+2. 利用者が Misskey で許可すると、`callback` に戻ってきます。
+3. クライアントが `POST /api/auth/misskey/finish {session}` を呼ぶと、親サーバーが `https://<host>/api/miauth/<session>/check` に問い合わせ、`@username@host` の利用者としてログインさせます。
+
+特定の Misskey サーバーの利用者だけにしたいときは `misskey.allowedHosts` に並べます。管理者は `admins` に `@name@host` で書きます。
+
+## バックアップ
+
+`data/` フォルダをまるごと保存すれば復元できます。最低限、次の 2 つは必ず保存してください。
+
+- `data/keys/ed25519.pem` … なくすと serverId が変わり、発行済みのチケットも使えなくなります
+- `data/db.sqlite` … 動かしたままでもコピーできるように、SQLite のバックアップ機能を使います:
+
+```sh
+sqlite3 apps/server/data/db.sqlite ".backup '/backup/db-$(date +%F).sqlite'"
+```
+
+`data/files/` は大きくなるので、rsync などで差分を取るのがおすすめです。
+
+## 制限と安全対策（概要）
+
+- SQL はすべてプレースホルダで値を渡しています。
+- 入力の長さは `@tentenv/protocol` の `LIMITS` に合わせて検査します。
+- アップロードは読みながら大きさを確かめ、上限を超えた時点で 413 を返して接続を閉じます。
+- ワールドは受け付け時に SDK と同じ検査（ファイル名・SHA-256・コードの静的検査）をします。
+- アバターは glTF バイナリで、VRM（`VRMC_vrm` / `VRM`）拡張を持つものだけを受け付けます。
+- `/files/` は `X-Content-Type-Options: nosniff` と `Content-Security-Policy: sandbox` 付きで配信し、共有ファイルの HTML などはバイナリとして返します。
+- WebSocket はメッセージの形を厳密に確かめ、回数（1 秒 120 回）と中継の送信量（1 秒 64KB）を制限し、違反が続く接続は切断します。
+- ワールドの永続データ: キーは `^[A-Za-z0-9_.\-:]{1,128}$`、値は 100KB まで、共有キー 256 個・1 人 64 個、ワールドあたり 10MB、書き込みは 1 人 1 分 30 回まで。ゲストは書けません。
+
+## インスタンスの公開範囲
+
+| 公開範囲 | 入れる人 |
+|---|---|
+| `public` | このサーバーの誰でも |
+| `friends+` | 中にいる人（と作成者）のフレンド |
+| `friends` | 作成者のフレンド |
+| `invite+` | 中にいる人から招待された人 |
+| `invite` | 作成者から招待された人 |
+
+作成者は常に入れます。作成者がブロックした人は入れません。キックされた人はそのインスタンスに入り直せません。空になったインスタンスは 5 分後に消えます（`persistent` のものは 24 時間残ります）。管理者はどのインスタンスでもモデレーターになります。

@@ -1,0 +1,64 @@
+{
+  "name": "ホーム",
+  "description": "TenTenV の標準のホームワールド。噴水の広場を中心に、鏡・シアター・ポータル・ラウンジ・持てる物・昼と夜の切り替えなど、SDK の機能をひととおり体験できます。",
+  "tags": ["home", "lobby", "showcase"],
+  "thumbnail": "thumbnail.png",
+  "recommendedCapacity": 16,
+  "maxCapacity": 32,
+  "physics": {
+    "gravity": 9.81,
+    "jump": 4.4
+  },
+  "camera": {
+    "near": 0.03,
+    "far": 900
+  },
+  "render": {
+    "toneMapping": "aces",
+    "exposure": 1
+  },
+  "spawn": {
+    "position": [0, 0, 13.5],
+    "yaw": 0
+  },
+  "permissions": {
+    "allowedDomains": [],
+    "relaxedRules": []
+  },
+  "credits": [
+    {
+      "name": "TenTenV Home（ワールド本体・音・テクスチャはすべてコードで生成）",
+      "author": "TenTenV contributors",
+      "license": "AGPL-3.0-only"
+    },
+    {
+      "name": "three.js",
+      "author": "three.js authors",
+      "license": "MIT",
+      "url": "https://github.com/mrdoob/three.js"
+    },
+    {
+      "name": "React",
+      "author": "Meta Platforms, Inc. and affiliates",
+      "license": "MIT",
+      "url": "https://github.com/facebook/react"
+    },
+    {
+      "name": "React Three Fiber",
+      "author": "Poimandres (pmndrs)",
+      "license": "MIT",
+      "url": "https://github.com/pmndrs/react-three-fiber"
+    },
+    {
+      "name": "Rapier (@dimforge/rapier3d-compat)",
+      "author": "Dimforge",
+      "license": "Apache-2.0",
+      "url": "https://rapier.rs/"
+    },
+    {
+      "name": "TenTenV SDK",
+      "author": "TenTenV contributors",
+      "license": "AGPL-3.0-only"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+# ビルド成果物
+/bin/
+/native/build/
+/dist/
+# scripts/fetch-openxr.mjs が取得する Khronos OpenXR SDK
+/native/third_party/openxr/
+# npm run build:selftest が作る
+/selftest/r3f.bundle.js
+# 自己テストの出力
+/test/output/
+# ローカル設定・ログ
+/tentenv.config.json
+*.log

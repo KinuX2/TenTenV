@@ -1,0 +1,8 @@
+{
+  "name": "テンプレートワールド",
+  "description": "ワールド制作のひな型",
+  "tags": ["template"],
+  "recommendedCapacity": 8,
+  "maxCapacity": 16,
+  "permissions": { "allowedDomains": [], "relaxedRules": [] }
+}

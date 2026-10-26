@@ -1,0 +1,40 @@
+{
+  "name": "@tentenv/desktop",
+  "version": "0.1.0",
+  "description": "TenTenV Windows native client (Electron + OpenXR native addon, WebXR bridge, SteamVR registration)",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "productName": "TenTenV",
+  "scripts": {
+    "start": "electron .",
+    "start:vr": "electron . --vr",
+    "fetch:openxr": "node scripts/fetch-openxr.mjs",
+    "build:native": "node scripts/build-native.mjs",
+    "build:selftest": "node scripts/build-selftest.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "register": "node scripts/register-steamvr.mjs",
+    "unregister": "node scripts/register-steamvr.mjs --remove",
+    "package": "node scripts/package.mjs",
+    "selftest": "node scripts/run-selftest.mjs",
+    "test:native": "node test/native-smoke.cjs",
+    "test": "node test/unit.cjs && node test/native-smoke.cjs --allow-missing"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@electron/fuses": "^2.1.3",
+    "@electron/packager": "^20.3.0",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/xr": "^6.6.32",
+    "cmake-js": "^8.0.0",
+    "electron": "^44.9.3",
+    "esbuild": "^0.28.2",
+    "node-addon-api": "^8.9.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "three": "^0.186.1"
+  }
+}

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>TenTenV selftest (three.js WebXR)</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px system-ui; color: #ddd }
+  canvas { display: block; width: 100vw !important; height: 100vh !important }
+  #status { position: fixed; left: 8px; top: 8px; white-space: pre; background: #000a; padding: 6px 8px; border-radius: 6px }
+</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three/three.module.js" } }</script>
+</head>
+<body>
+<div id="status">starting…</div>
+<script type="module">
+// three.js の WebXRManager だけで VR に入り、ブリッジの全経路（姿勢・入力・手・振動・提出・正面リセット・終了）を確かめる
+import * as THREE from 'three'
+import { createHarness, createInputProbe, near, sleep } from './harness.js'
+
+const H = createHarness('three')
+const { expect, notes, show } = H
+const BG = [0x33, 0x55, 0x77]
+
+try {
+  expect(!!navigator.xr && !!navigator.xr.__tentenv, 'navigator.xr is the TenTenV bridge')
+  expect(typeof XRWebGLBinding === 'undefined', 'XRWebGLBinding is hidden')
+  expect(await navigator.xr.isSessionSupported('immersive-vr'), "isSessionSupported('immersive-vr')")
+  expect(!(await navigator.xr.isSessionSupported('immersive-ar')), "isSessionSupported('immersive-ar') is false")
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer.setSize(innerWidth, innerHeight)
+  renderer.xr.enabled = true
+  document.body.appendChild(renderer.domElement)
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color((BG[0] << 16) | (BG[1] << 8) | BG[2]) // 16 進は sRGB として扱われる
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 2.5))
+  // 視野の中央（提出された画素を確かめる場所）には物を置かない
+  for (const [x, c] of [[-1.6, 0xff4444], [1.6, 0x44ff66]]) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.25), new THREE.MeshStandardMaterial({ color: c }))
+    m.position.set(x, 1.6, -2)
+    scene.add(m)
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshStandardMaterial({ color: 0x777777 }))
+  floor.rotation.x = -Math.PI / 2
+  scene.add(floor)
+  const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 100)
+
+  const probe = createInputProbe()
+  let xrFrames = 0, viewsOk = 0, headY = 0, pulsed = false
+  renderer.setAnimationLoop((t, frame) => {
+    if (frame) {
+      xrFrames++
+      const ref = renderer.xr.getReferenceSpace()
+      const pose = frame.getViewerPose(ref)
+      if (pose && pose.views.length === 2 && pose.views.every((v) => v.projectionMatrix.every(Number.isFinite))) viewsOk++
+      if (pose) headY = pose.transform.position.y
+      probe.sample(frame, ref, frame.session)
+      if (!pulsed) {
+        const gp = frame.session.inputSources.find((s) => s.gamepad)?.gamepad
+        if (gp) pulsed = gp.hapticActuators[0].pulse(0.5, 40)
+      }
+    }
+    renderer.render(scene, camera)
+  })
+
+  const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'] })
+  notes.enabledFeatures = [...session.enabledFeatures]
+  expect(session.enabledFeatures.includes('hand-tracking'), 'hand-tracking enabled')
+  const ev = { added: [], removed: 0, selectstart: 0, select: 0, selectend: 0, squeezestart: 0, squeezeend: 0, visibility: [], end: 0, frameratechange: 0, reset: 0 }
+  session.addEventListener('inputsourceschange', (e) => { for (const s of e.added) ev.added.push(s.hand ? 'hand' : 'controller'); ev.removed += e.removed.length })
+  for (const k of ['selectstart', 'select', 'selectend', 'squeezestart', 'squeezeend', 'frameratechange']) session.addEventListener(k, () => ev[k]++)
+  session.addEventListener('visibilitychange', () => ev.visibility.push(session.visibilityState))
+  session.addEventListener('end', () => ev.end++)
+  await renderer.xr.setSession(session)
+  const layer = session.renderState.baseLayer
+  notes.layer = layer && { w: layer.framebufferWidth, h: layer.framebufferHeight }
+  expect(layer && layer.framebufferWidth > 0 && layer.framebufferWidth === renderer.domElement.width, 'canvas resized to the side-by-side layer')
+  renderer.xr.getReferenceSpace().addEventListener('reset', () => ev.reset++)
+
+  // 疑似 HMD は 3 秒ごとにコントローラー ⇔ ハンドを切り替える
+  for (let i = 0; i < 8; i++) {
+    show(`three: running ${i + 1}/8 s, xr frames ${xrFrames}`)
+    await sleep(1000)
+  }
+
+  const bounded = await session.requestReferenceSpace('bounded-floor').catch((e) => e)
+  expect(bounded && bounded.boundsGeometry && bounded.boundsGeometry.length === 4, 'bounded-floor with boundsGeometry')
+  notes.supportedFrameRates = session.supportedFrameRates ? [...session.supportedFrameRates] : null
+  expect(notes.supportedFrameRates && notes.supportedFrameRates.includes(90), 'supportedFrameRates')
+  await session.updateTargetFrameRate(90)
+  window.dispatchEvent(new Event('tentenv:recenter'))
+  await sleep(600)
+  notes.frameRate = session.frameRate
+
+  const stats = await navigator.xr.__tentenv.stats()
+  notes.stats = stats
+  notes.xrFrames = xrFrames
+  notes.headY = +headY.toFixed(3)
+  notes.input = probe.seen
+  notes.events = ev
+  await session.end()
+  await sleep(300)
+
+  expect(xrFrames > 150, `XR frames rendered (${xrFrames})`)
+  expect(viewsOk > 150, 'viewer pose with 2 views and finite projections')
+  expect(Math.abs(headY - 1.6) < 0.2, `local-floor head height ≈ 1.6 m (${headY.toFixed(2)})`)
+  expect(stats.native && stats.native.submits > 100, 'frames submitted to the native session')
+  expect(stats.native && near(stats.native.sampleLeft, BG, 4) && near(stats.native.sampleRight, BG, 4), `submitted pixels match the scene (${stats.native && stats.native.sampleLeft})`)
+  expect(ev.added.includes('controller') && ev.added.includes('hand') && ev.removed > 0, 'inputsourceschange for controllers and hands')
+  expect(probe.seen.mapping === 'xr-standard' && probe.seen.buttons >= 6 && probe.seen.axes === 4, 'xr-standard gamepad (6 buttons, 4 axes)')
+  expect(probe.seen.profiles.includes('oculus-touch-v3'), 'controller profile')
+  expect(probe.seen.triggerPressed && probe.seen.primaryPressed && probe.seen.stickMoved, 'trigger / A / thumbstick read from gamepad')
+  expect(probe.seen.gripPoses > 50 && probe.seen.rayPoses > 50, 'gripSpace / targetRaySpace poses')
+  expect(probe.seen.jointPoses > 20 && probe.seen.fillPosesOk > 20, 'hand joints via getJointPose / fillPoses')
+  expect(probe.seen.bodyTrackerFrames > 20, 'body trackers via XRFrame.__ttvExtra')
+  expect(ev.selectstart > 0 && ev.select > 0 && ev.selectend > 0, 'select events')
+  expect(ev.squeezestart > 0 && ev.squeezeend > 0, 'squeeze events')
+  expect(ev.visibility.includes('visible'), 'visibilitychange to visible')
+  expect((await pulsed) === true && stats.native.haptics > 0, 'haptics pulse')
+  expect(ev.frameratechange > 0 && notes.frameRate === 90, 'updateTargetFrameRate(90)')
+  expect(ev.reset > 0, 'reference space reset on recenter')
+  expect(ev.end === 1 && !renderer.xr.isPresenting, 'session end')
+  H.report()
+} catch (err) {
+  H.fail(err)
+}
+</script>
+</body>
+</html>

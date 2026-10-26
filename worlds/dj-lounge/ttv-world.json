@@ -1,0 +1,164 @@
+{
+  "name": "DJ Lounge",
+  "description": "2台のデッキとミキサーで DJ ができるクラブ。曲と操作はみんなで同期されます。",
+  "tags": [
+    "music",
+    "dj",
+    "club"
+  ],
+  "thumbnail": "thumbnail.png",
+  "recommendedCapacity": 16,
+  "maxCapacity": 32,
+  "physics": {
+    "gravity": 9.81,
+    "allowInfiniteJump": true
+  },
+  "camera": {
+    "near": 0.01,
+    "far": 500
+  },
+  "spawn": {
+    "position": [
+      0,
+      0,
+      6
+    ],
+    "yaw": 0
+  },
+  "permissions": {
+    "allowedDomains": [],
+    "relaxedRules": []
+  },
+  "credits": [
+    {
+      "name": "Ascend（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Drama（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "The Lab（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Vessel of Eternity（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Mental Corruption（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "Logic or Emotions（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "Bow For Me（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Stomper（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "Ripped Apart（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "Passing Timeline（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Glory Days（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Psychic（Free Rhythm Game Music Pack 1）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-1"
+    },
+    {
+      "name": "Celebration and Fear（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "What's Cooking?（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "Zen Devils（Free Rhythm Game Music Pack 2）",
+      "author": "Tricks & Traps",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/free-rhythm-game-music-pack-2"
+    },
+    {
+      "name": "オリジナル曲（6 曲）とサンプラーの音",
+      "author": "DJ Lounge Original",
+      "license": "このワールド用に作成"
+    },
+    {
+      "name": "three.js",
+      "author": "three.js authors",
+      "license": "MIT",
+      "url": "https://github.com/mrdoob/three.js"
+    },
+    {
+      "name": "React",
+      "author": "Meta Platforms, Inc. and affiliates",
+      "license": "MIT",
+      "url": "https://github.com/facebook/react"
+    },
+    {
+      "name": "React Three Fiber",
+      "author": "Poimandres (pmndrs)",
+      "license": "MIT",
+      "url": "https://github.com/pmndrs/react-three-fiber"
+    },
+    {
+      "name": "drei",
+      "author": "Poimandres (pmndrs)",
+      "license": "MIT",
+      "url": "https://github.com/pmndrs/drei"
+    },
+    {
+      "name": "Rapier (@dimforge/rapier3d-compat)",
+      "author": "Dimforge",
+      "license": "Apache-2.0",
+      "url": "https://rapier.rs/"
+    },
+    {
+      "name": "TenTenV SDK",
+      "author": "TenTenV contributors",
+      "license": "AGPL-3.0-only"
+    }
+  ]
+}

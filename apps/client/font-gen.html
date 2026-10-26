@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>MSDF font generator (dev tool)</title>
+  </head>
+  <body>
+    <!-- 開発用の道具: scripts/build-font.mjs がこのページを開き、メニューの日本語フォント（MSDF）を作る -->
+    <script type="module">
+      import { TTFLoader } from '@pmndrs/uikit'
+      window.generateFont = async (opts) => {
+        const families = await new TTFLoader().loadAsync({ url: opts.url, charset: opts.charset, fontSize: opts.fontSize, textureSize: opts.textureSize, fieldRange: opts.fieldRange, padding: opts.padding, fixOverlaps: true })
+        const [name] = Object.keys(families)
+        const weights = families[name]
+        const [w] = Object.keys(weights)
+        return JSON.stringify(weights[w])
+      }
+      window.fontGenReady = true
+    </script>
+  </body>
+</html>

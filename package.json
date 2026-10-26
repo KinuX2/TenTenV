@@ -1,0 +1,39 @@
+{
+  "name": "tentenv",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "worlds/*"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev -w @tentenv/server",
+    "dev:client": "npm run dev -w @tentenv/client",
+    "build": "npm run build -w @tentenv/protocol -w @tentenv/sdk && npm run build -w @tentenv/client && npm run build -w @tentenv/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "seed": "node scripts/build-seed.mjs",
+    "start": "node scripts/build-seed.mjs --if-missing && npm run build -w @tentenv/client && npm start -w @tentenv/server",
+    "font": "node scripts/build-font.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
+  },
+  "overrides": {
+    "@iwer/devui": {
+      "three": "0.186.1"
+    },
+    "@iwer/sem": {
+      "three": "0.186.1"
+    },
+    "stats-gl": {
+      "three": "0.186.1"
+    }
+  }
+}

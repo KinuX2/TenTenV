@@ -1,0 +1,26 @@
+{
+  "name": "@tentenv-worlds/dj-lounge",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "ttv-world dev",
+    "build": "ttv-world build",
+    "pack": "ttv-world pack --no-build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.2",
+    "@react-three/rapier": "^2.2.0",
+    "@tentenv/sdk": "0.1.0",
+    "@types/react": "^19.2.0",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "react": "^19.2.0",
+    "three": "^0.186.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5"
+  }
+}

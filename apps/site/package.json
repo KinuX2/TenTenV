@@ -1,0 +1,28 @@
+{
+  "name": "@tentenv/site",
+  "version": "0.1.0",
+  "description": "TenTenV official website",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "capture": "node scripts/capture.mjs",
+    "bundle-download": "node scripts/bundle-download.mjs"
+  },
+  "dependencies": {
+    "marked": "^18.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5"
+  }
+}

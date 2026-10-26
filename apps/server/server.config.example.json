@@ -1,0 +1,30 @@
+{
+  "name": "TenTenV Server",
+  "description": "みんなで集まれる親サーバーです",
+  "termsUrl": null,
+  "publicUrl": "https://vr.example.com",
+  "port": 8787,
+  "allowGuest": true,
+  "allowGuestUploads": true,
+  "misskey": {
+    "enabled": true,
+    "allowedHosts": null
+  },
+  "limits": {
+    "avatarBytes": 104857600,
+    "worldBytes": 314572800,
+    "instanceFileBytes": 52428800,
+    "maxInstanceCapacity": 40
+  },
+  "relay": true,
+  "iceServers": [
+    { "urls": "stun:stun.l.google.com:19302" }
+  ],
+  "admins": ["@yourname@misskey.example"],
+  "corsOrigins": "*",
+  "trustProxy": false,
+  "rateLimits": {
+    "authPerMinute": 30,
+    "uploadsPerMinute": 20
+  }
+}

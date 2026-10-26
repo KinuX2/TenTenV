@@ -1,0 +1,23 @@
+{
+  "source": "builtin",
+  "applications": [
+    {
+      "app_key": "tentenv.client",
+      "launch_type": "binary",
+      "binary_path_windows": "TenTenV.exe",
+      "arguments": "--vr",
+      "image_path": "resources/app/assets/steamvr-library.png",
+      "is_dashboard_overlay": false,
+      "strings": {
+        "en_us": {
+          "name": "TenTenV",
+          "description": "TenTenV social VR (WebXR client bridged to OpenXR)"
+        },
+        "ja_jp": {
+          "name": "TenTenV",
+          "description": "TenTenV ソーシャル VR（WebXR クライアントを OpenXR で表示）"
+        }
+      }
+    }
+  ]
+}
