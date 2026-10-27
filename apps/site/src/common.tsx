@@ -46,7 +46,7 @@ export const L = (ja: string, en: string) => (lang === 'ja' ? ja : en)
 export const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:5190' : 'https://tenten.marusankakusikakuonline.com/')
 /** ソースコードの置き場所（あれば） */
 export const REPO_URL: string = import.meta.env.VITE_REPO_URL ?? 'https://github.com/KinuX2/TenTenV'
-export const WINDOWS_ZIP = `${import.meta.env.BASE_URL}downloads/TenTenV-win32-x64.zip`
+export const WINDOWS_ZIP = 'https://github.com/KinuX2/TenTenV/releases/latest/download/TenTenV-win32-x64.zip'
 export const page = (p: '' | 'docs/' | 'download/') => `${import.meta.env.BASE_URL}${p}`
 
 // ---------------- ヘッダー・フッター ----------------

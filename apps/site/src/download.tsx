@@ -1,27 +1,11 @@
 // ダウンロード: ブラウザ・Windows 版・VR ヘッドセットでの始め方
 import { createRoot } from 'react-dom/client'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { CLIENT_URL, Footer, Header, Icon, L, page, useLang, WINDOWS_ZIP } from './common'
 import './site.css'
 
-/** Windows 版の zip がこのサイトに置いてあるか */
-const useZip = () => {
-  const [state, setState] = useState<{ ok: boolean; size?: number } | null>(null)
-  useEffect(() => {
-    fetch(WINDOWS_ZIP, { method: 'HEAD' })
-      .then((r) => {
-        const type = r.headers.get('content-type') ?? ''
-        // 開発サーバーは無いファイルにも index.html を返すので、種類も見る
-        setState(r.ok && !type.includes('text/html') ? { ok: true, size: Number(r.headers.get('content-length')) || undefined } : { ok: false })
-      })
-      .catch(() => setState({ ok: false }))
-  }, [])
-  return state
-}
-
 const Download: React.FC = () => {
   useLang()
-  const zip = useZip()
   useEffect(() => {
     document.title = `${L('ダウンロード', 'Download')} — TenTenV`
   })
@@ -65,18 +49,10 @@ const Download: React.FC = () => {
                 <li>{L('OpenXR に対応した VR ランタイム', 'Any OpenXR runtime')}</li>
                 <li>{L('対応する VR ランタイムのライブラリに登録できる', 'Can be added to a compatible VR runtime library')}</li>
               </ul>
-              {zip?.ok ? (
-                <a className="btn" href={WINDOWS_ZIP} download>
-                  <Icon name="download" size={18} />
-                  {L('zip をダウンロード', 'Download zip')}
-                  {zip.size ? ` (${Math.round(zip.size / 1048576)} MB)` : ''}
-                </a>
-              ) : (
-                <a className="btn" href={page('docs/') + '?doc=desktop#ビルドと起動'}>
-                  <Icon name="code" size={18} />
-                  {zip ? L('ソースからビルドする', 'Build from source') : L('確認しています…', 'Checking…')}
-                </a>
-              )}
+              <a className="btn" href={WINDOWS_ZIP}>
+                <Icon name="download" size={18} />
+                {L('zip をダウンロード', 'Download zip')}
+              </a>
             </div>
 
             <div className="dl">
