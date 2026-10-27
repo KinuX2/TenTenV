@@ -74,7 +74,7 @@ type Phase =
   | { kind: 'joining' }
   | { kind: 'queued'; position: number }
   | { kind: 'loading'; progress: number; label: string }
-  | { kind: 'ready'; engine: WorldEngine; world: LoadedWorld }
+  | { kind: 'ready'; target: string; engine: WorldEngine; world: LoadedWorld }
   | { kind: 'error'; message: string }
 
 const waitFor = <T extends ServerSignal['t']>(t: T, timeout: number) => {
@@ -98,8 +98,12 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
   const [ext, setExt] = useState<AvatarExtensions | null>(null)
   const engineRef = useRef<WorldEngine | null>(null)
   const avatar = useApp((s) => s.avatar)
+  const target = `${devUrl ?? instanceId ?? ''}:${rejoin}`
 
   useEffect(() => {
+    setPhase({ kind: 'joining' })
+    setWorldError(null)
+    setExt(null)
     let alive = true
     let session: InstanceSession | null = null
     let engine: WorldEngine | null = null
@@ -114,6 +118,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         // 開発用: 親サーバーなし。同じブラウザのタブどうしで同期する
         setPhase({ kind: 'loading', progress: 0, label: L('ワールドを読み込んでいます', 'Loading world') })
         world = await loadDevWorld(devUrl, (p) => alive && setPhase({ kind: 'loading', progress: p, label: L('ワールドを読み込んでいます', 'Loading world') }))
+        if (!alive) return
         manifest = world.manifest
         const name = localStorage.getItem('ttv.guestName') || `Dev${Math.floor(Math.random() * 900 + 100)}`
         const t = new LocalTransport(devUrl, { id: `dev-${name}`, displayName: name, iconUrl: null, status: 'online', statusText: '' })
@@ -127,10 +132,12 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         if (!sig.open) await new Promise<void>((res) => {
           const off = sig.onOpenChange((o) => o && (off(), res()))
         })
+        if (!alive) return
         const hostScore = s.refuseHost ? 0 : /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 20 : 60
         // 参加（同じインスタンスへの参加が重なったら 1 つにまとめる）
-        const joined = await joins.acquire(sig, instanceId!, { hostScore, relayOnly: s.relayOnly }, (pos) => alive && setPhase({ kind: 'queued', position: pos }))
+        const joinedPromise = joins.acquire(sig, instanceId!, { hostScore, relayOnly: s.relayOnly }, (pos) => alive && setPhase({ kind: 'queued', position: pos }))
         offs.push(() => joins.release(sig, instanceId!))
+        const joined = await joinedPromise
         if (!alive) return
         offs.push(
           sig.on('welcome', () => {
@@ -142,8 +149,10 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         const inst: InstanceInfo = joined.instance
         setPhase({ kind: 'loading', progress: 0, label: L('ワールドの情報を取得しています', 'Fetching world') })
         const wi = await api.world(inst.worldId)
+        if (!alive) return
         manifest = wi.manifest
         world = await loadWorld(manifest, api.abs(wi.baseUrl)!, (p) => alive && setPhase({ kind: 'loading', progress: p, label: L('ワールドを読み込んでいます', 'Loading world') }))
+        if (!alive) return
         const ticket = decodeTicketPayload(joined.ticket)
         const self: PeerDescriptor = { peerId: joined.peerId, user: { id: a.me.id, displayName: a.me.displayName, iconUrl: a.me.iconUrl, status: a.me.status, statusText: a.me.statusText, isGuest: a.me.isGuest }, joinedAt: ticket?.iat ?? Date.now(), hostScore, ticket: joined.ticket }
         const t = new MeshTransport({ signal: sig, self, peers: joined.peers, iceServers: info.iceServers, relayOnly: joined.relayOnly || s.relayOnly, relayAllowed: info.relay })
@@ -214,7 +223,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
       )
       // OSC での表情の受け取り（設定で有効なときだけ）
       offs.push(startOscFace())
-      setPhase({ kind: 'ready', engine: e, world })
+      setPhase({ kind: 'ready', target, engine: e, world })
     }
     start().catch(fail)
     return () => {
@@ -228,7 +237,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
       session?.close()
       engineRef.current = null
     }
-  }, [instanceId, devUrl, rejoin])
+  }, [instanceId, devUrl, rejoin, target])
 
   // アバターを変えたら伝える
   useEffect(() => {
@@ -248,40 +257,24 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
   }, [])
 
   const leave = () => useApp.getState().setScreen(devUrl ? { kind: 'connect' } : { kind: 'home' })
-
-  if (phase.kind !== 'ready') {
-    return (
-      <div className="loading">
-        <div className="box">
-          <div className="brand">
-            <img src="/icon.svg" alt="" /> TenTenV
-          </div>
-          {phase.kind === 'joining' && <div>{L('インスタンスに参加しています…', 'Joining instance…')}</div>}
-          {phase.kind === 'queued' && (
-            <div>
-              {L(`満員のため並んでいます（${phase.position} 番目）`, `Instance is full — you are #${phase.position} in the queue`)}
-            </div>
-          )}
-          {phase.kind === 'loading' && (
-            <>
-              <div>{phase.label}</div>
-              <div className="bar">
-                <div style={{ width: `${Math.round(phase.progress * 100)}%` }} />
-              </div>
-            </>
-          )}
-          {phase.kind === 'error' && <div className="err">{phase.message}</div>}
-          <button className="btn" onClick={leave}>
-            {phase.kind === 'error' ? L('戻る', 'Back') : L('やめる', 'Cancel')}
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const ready = phase.kind === 'ready' && phase.target === target ? phase : null
+  useEffect(() => {
+    if (ready) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') leave()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [ready, devUrl])
+  useEffect(() => {
+    if (phase.kind !== 'error') return
+    toast(phase.message, 'error')
+    leave()
+  }, [phase, devUrl])
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
-      <WorldScene engine={phase.engine} world={phase.world} extensions={ext} onWorldError={(e) => setWorldError(e.message)} />
-      <Hud engine={phase.engine} onLeave={leave} worldError={worldError} />
+      <WorldScene engine={ready?.engine ?? null} world={ready?.world ?? null} extensions={ext} onWorldError={(e) => setWorldError(e.message)} onLoadingCancel={leave} />
+      {ready && <Hud engine={ready.engine} onLeave={leave} worldError={worldError} />}
     </div>
   )
 }

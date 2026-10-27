@@ -5,7 +5,7 @@ import { Container, Fullscreen } from '@react-three/uikit'
 import { usePointerXRInputSourceEvents, useRayPointer, useXRInputSourceStateContext, XRSpace } from '@react-three/xr'
 import type { Pointer } from '@pmndrs/pointer-events'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { Euler, Group, Quaternion, Vector3, type Mesh, type MeshBasicMaterial } from 'three'
+import { Group, Quaternion, Vector3, type Mesh, type MeshBasicMaterial } from 'three'
 import { create } from 'zustand'
 import type { WorldEngine } from '../../world/engine'
 import { useDialogs } from '../bridge'
@@ -55,7 +55,12 @@ const ScreenPlacement: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   )
 }
 
-/** VR: 開いたときに目の前 0.7m・目の高さより少し下に置く */
+const menuPosition = new Vector3()
+const menuRotation = new Quaternion()
+const menuUp = new Vector3(0, 1, 0)
+const menuTilt = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -0.12)
+
+/** VR: メニューをボディの前に置き、体の移動と向きに追従させる。 */
 const VrPlacement: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   const gl = useThree((s) => s.gl)
   const open = useMenu((m) => m.open)
@@ -63,29 +68,24 @@ const VrPlacement: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   const dialogs = useDialogs((d) => d.dialogs.length)
   const show = open || gestures || dialogs > 0
   const g = useRef<Group>(null)
-  const placed = useRef(false)
   useEffect(() => {
     if (gestures) useMenu.getState().setPage('expressions')
   }, [gestures])
   useEffect(() => {
-    if (!show) placed.current = false
     useVrMenuShown.setState({ shown: show })
     return () => useVrMenuShown.setState({ shown: false })
   }, [show])
   useFrame(() => {
     const grp = g.current
-    if (!grp || !show || placed.current) return
-    const p = engine.player
-    const yaw = new Euler().setFromQuaternion(p.head.q, 'YXZ').y
-    const fwd = new Vector3(-Math.sin(yaw), 0, -Math.cos(yaw))
-    grp.position.copy(p.head.p).addScaledVector(fwd, 0.7).add(new Vector3(0, -0.06, 0))
-    grp.quaternion.copy(new Quaternion().setFromEuler(new Euler(-0.12, yaw, 0, 'YXZ')))
+    if (!grp || !show) return
+    const body = engine.player
+    menuRotation.setFromAxisAngle(menuUp, body.yaw)
+    grp.position.copy(body.position).add(menuPosition.set(0, body.height * 0.93 - 0.06, -0.7).applyQuaternion(menuRotation))
+    grp.quaternion.copy(menuRotation).multiply(menuTilt)
     grp.scale.setScalar(gl.xr.getCamera().parent?.scale.x ?? 1)
-    placed.current = true
   })
   return (
     <group ref={g} visible={show}>
-      {/* VR の板は従来の位置・向き・幅を保つ。 */}
       {show && (
         <Container pixelSize={0.85 / PANEL_W} anchorX="center" anchorY="center">
           <MenuPanel engine={engine} vr close={close} exitVR={() => void gl.xr.getSession()?.end()} showDialogs />
@@ -101,7 +101,7 @@ const VrPlacement: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
 export const MenuController: React.FC = () => {
   const state = useXRInputSourceStateContext('controller')
   const ref = useRef<Group>(null)
-  const pointer = useRayPointer(ref, state, { minDistance: 0 })
+  const pointer = useRayPointer(ref, state, { minDistance: 0, clickThresholdMs: Number.POSITIVE_INFINITY })
   usePointerXRInputSourceEvents(pointer, state.inputSource, 'select', state.events)
   const shown = useVrMenuShown((s) => s.shown)
   useEffect(() => pointer.setEnabled(shown, { timeStamp: performance.now() } as never), [pointer, shown])

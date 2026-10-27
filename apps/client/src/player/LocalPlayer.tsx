@@ -14,6 +14,7 @@ import { input, type InputFrame } from './input'
 import { xrInput, type HandInput } from './xrInput'
 import { menuBus } from '../ui/menuBus'
 import { pendingClick, pendingGrab, pendingTap, pendingUse, pendingWheel } from '../world/interaction'
+import { playspaceOriginY, updatePlayspaceLift } from './playspaceLift'
 
 const RADIUS = 0.25
 const STAND_HALF = 0.55
@@ -81,6 +82,7 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
     xrWas: false,
     airJumps: 0,
     fallen: 0,
+    playspaceLift: { active: false, floorY: engine.player.position.y },
   })
 
   useEffect(() => {
@@ -117,6 +119,8 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       phys.body.setTranslation(tp.position, true)
       phys.body.setNextKinematicTranslation(tp.position)
       S.vy = 0
+      S.playspaceLift = { active: false, floorY: tp.position.y }
+      phys.cc.enableSnapToGround(0.35)
       if (tp.yaw !== undefined) {
         p.yaw = tp.yaw
         S.bodyYaw = tp.yaw
@@ -245,7 +249,29 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       }
     }
 
-    const desired = new Vector3(p.velocity.x * dt + roomDelta.x, S.vy * dt, p.velocity.z * dt + roomDelta.z)
+    // VR の基準空間が上がったら、視点だけでなく体も持ち上げて高度を維持する。
+    let liftTargetY: number | null = null
+    const wasFloating = S.playspaceLift.active
+    if (xr && !p.sitting && headLocal && !p.jumping) {
+      const lift = updatePlayspaceLift(S.playspaceLift, headLocal.p.y, s.playerHeight * 0.935, scale, p.position.y, p.grounded)
+      S.playspaceLift = lift.state
+      liftTargetY = lift.targetY
+    } else if (xr && S.playspaceLift.active && !headLocal) {
+      // 一時的に頭の追跡が切れても、空中の位置を保つ。
+      liftTargetY = p.position.y
+    } else if (!xr || p.sitting) {
+      S.playspaceLift = { active: false, floorY: p.position.y }
+    }
+    if (S.playspaceLift.active !== wasFloating) {
+      if (S.playspaceLift.active) phys.cc.disableSnapToGround()
+      else phys.cc.enableSnapToGround(0.35)
+    }
+    if (liftTargetY !== null) {
+      S.vy = 0
+      p.jumping = false
+    }
+
+    const desired = new Vector3(p.velocity.x * dt + roomDelta.x, liftTargetY === null ? S.vy * dt : liftTargetY - p.position.y, p.velocity.z * dt + roomDelta.z)
     if (p.sitting) {
       const seatP = new Vector3()
       p.sitting.obj.updateWorldMatrix(true, false)
@@ -296,7 +322,8 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
         S.sitOffset = null
         if (headLocal) {
           const hw = headLocal.p.clone().multiplyScalar(scale).applyAxisAngle(UP, S.originYaw)
-          o.position.set(p.position.x - hw.x, p.position.y + seatedLift, p.position.z - hw.z)
+          // 本体を持ち上げた分を XR 原点から差し引き、頭と手を二重に上げない。
+          o.position.set(p.position.x - hw.x, playspaceOriginY(p.position.y, seatedLift, S.playspaceLift, liftTargetY), p.position.z - hw.z)
         }
       }
       o.updateMatrixWorld(true)

@@ -4,9 +4,21 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 誰でも自分の「親サーバー」を立てられ、利用者は接続する親サーバーを選びます。参加者どうしは P2P（WebRTC）で直接つながるので、親サーバーが止まっても、すでに同じ部屋にいる人とはそのまま遊び続けられます。
 
-## メニュー画面
+## デモプレイ動画
 
-![TenTenV のワールド内メニュー](docs/images/menu-main.png)
+[![ホームワールドのデモ動画を見る](docs/images/home-world-walk.png)](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.webm)
+
+[デモプレイ動画を開く（WebM・約 37 秒）](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.webm)。ホームワールドへの入室、移動、ワールド内メニューを収録しています。
+
+## スクリーンショット
+
+| ホームワールド | DJ Lounge |
+|---|---|
+| ![ホームワールドの広場](docs/images/home-world.png) | ![DJ Lounge のステージ](docs/images/dj-lounge.png) |
+| ワールド一覧 | ワールド内メニュー |
+| ![ワールド一覧](docs/images/worlds.png) | ![ワールド内のメインメニュー](docs/images/menu-main.png) |
+| アバター一覧 | ワールドメニュー |
+| ![アバター一覧](docs/images/menu-avatars.png) | ![ワールドメニュー](docs/images/menu-worlds.png) |
 
 ## 特長
 

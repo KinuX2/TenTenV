@@ -3,8 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Physics } from '@react-three/rapier'
 import { XR } from '@react-three/xr'
 import { WorldRuntimeProvider, LAYERS } from '@tentenv/sdk'
-import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ACESFilmicToneMapping, AgXToneMapping, HalfFloatType, NeutralToneMapping, NoToneMapping, PCFShadowMap, UnsignedByteType, type WebGLRenderer } from 'three'
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ACESFilmicToneMapping, AdditiveBlending, AgXToneMapping, Color, HalfFloatType, NeutralToneMapping, NoToneMapping, PCFShadowMap, Quaternion, UnsignedByteType, Vector3, type Group, type WebGLRenderer } from 'three'
 import type { AvatarExtensions } from '@tentenv/protocol'
 import { LocalPlayer } from '../player/LocalPlayer'
 import { qualityProfile, useSettings } from '../state/settings'
@@ -64,7 +64,7 @@ const RenderSettings: React.FC<{ world: LoadedWorld }> = ({ world }) => {
     setDpr(qualityProfile(q).dpr * scale)
     gl.shadowMap.enabled = shadows
     gl.shadowMap.type = PCFShadowMap
-    gl.xr.setFramebufferScaleFactor(Math.min(1.5, scale * (q === 'low' ? 0.8 : 1)))
+    if (!gl.xr.isPresenting) gl.xr.setFramebufferScaleFactor(Math.min(1.5, scale * (q === 'low' ? 0.8 : 1)))
   }, [gl, q, scale, shadows, setDpr])
   useEffect(() => {
     const r = world.manifest.render
@@ -122,59 +122,147 @@ const ListenerSetup: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
 }
 
 export interface WorldSceneProps {
-  engine: WorldEngine
-  world: LoadedWorld
+  engine: WorldEngine | null
+  world: LoadedWorld | null
   extensions: AvatarExtensions | null
   onWorldError: (e: Error) => void
+  onLoadingCancel: () => void
 }
 
-export const WorldScene: React.FC<WorldSceneProps> = ({ engine, world, extensions, onWorldError }) => {
+const loadingPosition = new Vector3()
+const loadingRotation = new Quaternion()
+const loadingOffset = new Vector3(0, 0, -1.3)
+const rotatedLoadingOffset = new Vector3()
+
+/** VR と画面モードで共通の、黒地に多色の粒が漂うロード画面。 */
+const WorldLoadingView: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
+  const group = useRef<Group>(null)
+  const cloud = useRef<Group>(null)
+  const yWasDown = useRef(false)
+  const { gl, camera } = useThree()
+  const particles = useMemo(() => {
+    const count = 9000
+    const positions = new Float32Array(count * 3)
+    const colors = new Float32Array(count * 3)
+    let seed = 0x51a7c8e3
+    const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 0x100000000)
+    const top = new Color()
+    const bottom = new Color()
+    for (let i = 0; i < count;) {
+      const x = (random() * 2 - 1) * 1.38
+      const y = 0.88 - Math.pow(random(), 1.3) * 1.78
+      const edge = (x / 1.38) ** 2 + ((y - 0.08) / 0.94) ** 2
+      if (edge > 1 && random() < Math.min(1, (edge - 1) * 4)) continue
+      const j = i * 3
+      positions[j] = x
+      positions[j + 1] = y
+      positions[j + 2] = (random() - 0.5) * 0.24
+      const hueNoise = (random() - 0.5) * 0.04
+      const u = (x / 1.38 + 1) / 2
+      const brightness = 0.11 + Math.pow(random(), 3) * 0.37
+      top.setHSL((0.67 - 0.66 * u + hueNoise + 1) % 1, 0.9, brightness)
+      bottom.setHSL(0.78 + 0.11 * u + hueNoise, 0.88, brightness)
+      bottom.lerp(top, Math.max(0, Math.min(1, (y + 0.3) / 0.82)))
+      colors[j] = bottom.r
+      colors[j + 1] = bottom.g
+      colors[j + 2] = bottom.b
+      i++
+    }
+    return { positions, colors }
+  }, [])
+  useFrame(({ clock }) => {
+    let yDown = false
+    for (const source of gl.xr.getSession()?.inputSources ?? []) {
+      if (source.handedness === 'left' && source.gamepad?.buttons[5]?.pressed) yDown = true
+    }
+    if (yDown && !yWasDown.current) onCancel()
+    yWasDown.current = yDown
+    if (!group.current) return
+    const view = gl.xr.isPresenting ? gl.xr.getCamera() : camera
+    view.getWorldPosition(loadingPosition)
+    view.getWorldQuaternion(loadingRotation)
+    group.current.position.copy(loadingPosition).add(rotatedLoadingOffset.copy(loadingOffset).applyQuaternion(loadingRotation))
+    group.current.quaternion.copy(loadingRotation)
+    if (cloud.current) {
+      cloud.current.rotation.z = Math.sin(clock.elapsedTime * 0.16) * 0.025
+      cloud.current.rotation.y = Math.sin(clock.elapsedTime * 0.12) * 0.035
+    }
+  })
+  return (
+    <>
+      <color attach="background" args={['#000000']} />
+      <group ref={group}>
+        <group ref={cloud}>
+          <points frustumCulled={false}>
+            <bufferGeometry>
+              <bufferAttribute attach="attributes-position" args={[particles.positions, 3]} />
+              <bufferAttribute attach="attributes-color" args={[particles.colors, 3]} />
+            </bufferGeometry>
+            <pointsMaterial size={1.6} sizeAttenuation={false} vertexColors transparent opacity={0.9} blending={AdditiveBlending} depthWrite={false} toneMapped={false} />
+          </points>
+        </group>
+      </group>
+    </>
+  )
+}
+
+const WorldContents: React.FC<{ engine: WorldEngine; world: LoadedWorld; extensions: AvatarExtensions | null; onWorldError: (e: Error) => void }> = ({ engine, world, extensions, onWorldError }) => {
   const eye = useRef(1.6)
+  const WorldComponent = world.Component
+  const gravity = world.manifest.physics?.gravity ?? 9.81
+  return (
+    <>
+      <RenderSettings world={world} />
+      <ListenerSetup engine={engine} />
+      <FallbackLights />
+      <Physics gravity={[0, -gravity, 0]} timeStep={1 / 60} interpolate>
+        <WorldRuntimeProvider value={engine.runtime}>
+          <WorldErrorBoundary onError={onWorldError}>
+            <WorldComponent />
+          </WorldErrorBoundary>
+          <LocalPlayer engine={engine} avatarEye={() => eye.current} />
+          <PickupSystem engine={engine} />
+          <PlatformFeatures engine={engine} />
+          <PlacedPortals engine={engine} />
+        </WorldRuntimeProvider>
+      </Physics>
+      <LocalAvatar engine={engine} extensions={extensions} onEye={(e) => (eye.current = e)} />
+      <RemotePlayers engine={engine} />
+      <InteractionSystem engine={engine} />
+      <WorldMenu engine={engine} />
+    </>
+  )
+}
+
+export const WorldScene: React.FC<WorldSceneProps> = ({ engine, world, extensions, onWorldError, onLoadingCancel }) => {
   const q = useSettings((s) => s.s.quality)
   const prof = qualityProfile(q)
-  const hdr = world.manifest.render?.hdr
-  const [WorldComponent] = useState(() => world.Component)
-  const gravity = world.manifest.physics?.gravity ?? 9.81
+  const firstHdr = useRef(world?.manifest.render?.hdr ?? false)
+  const engineRef = useRef(engine)
+  engineRef.current = engine
   return (
     <Canvas
       shadows
       dpr={prof.dpr}
-      gl={{ antialias: prof.antialias, powerPreference: 'high-performance', outputBufferType: hdr ? HalfFloatType : UnsignedByteType } as never}
+      gl={{ antialias: prof.antialias, powerPreference: 'high-performance', outputBufferType: firstHdr.current ? HalfFloatType : UnsignedByteType } as never}
       camera={{ fov: 75, near: 0.03, far: 1000, position: [0, 1.6, 0] }}
       onCreated={({ gl }) => {
         input.attach(gl.domElement)
         // メニュー（uikit）の中身のスクロールで切り抜くため
         gl.localClippingEnabled = true
         gl.domElement.addEventListener('click', () => {
-          if (!engine.player.vr && engine.player.device === 'desktop' && !document.pointerLockElement && !useMenu.getState().open) input.requestLock()
+          const active = engineRef.current
+          if (active && !active.player.vr && active.player.device === 'desktop' && !document.pointerLockElement && !useMenu.getState().open) input.requestLock()
         })
       }}
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
       <XR store={xrStore}>
-        <RenderSettings world={world} />
-        <ListenerSetup engine={engine} />
-        <FallbackLights />
-        <Suspense fallback={null}>
-          <Physics gravity={[0, -gravity, 0]} timeStep={1 / 60} interpolate>
-            <WorldRuntimeProvider value={engine.runtime}>
-              <WorldErrorBoundary onError={onWorldError}>
-                <Suspense fallback={null}>
-                  <WorldComponent />
-                </Suspense>
-              </WorldErrorBoundary>
-              <LocalPlayer engine={engine} avatarEye={() => eye.current} />
-              <PickupSystem engine={engine} />
-              <PlatformFeatures engine={engine} />
-              <PlacedPortals engine={engine} />
-            </WorldRuntimeProvider>
-          </Physics>
-        </Suspense>
-        <LocalAvatar engine={engine} extensions={extensions} onEye={(e) => (eye.current = e)} />
-        <RemotePlayers engine={engine} />
-        <InteractionSystem engine={engine} />
-        {/* メニュー（画面でも VR でも同じ uikit の板） */}
-        <WorldMenu engine={engine} />
+        {engine && world ? (
+          <Suspense fallback={<WorldLoadingView onCancel={onLoadingCancel} />}>
+            <WorldContents key={engine.ctx.instance.id} engine={engine} world={world} extensions={extensions} onWorldError={onWorldError} />
+          </Suspense>
+        ) : <WorldLoadingView onCancel={onLoadingCancel} />}
       </XR>
     </Canvas>
   )

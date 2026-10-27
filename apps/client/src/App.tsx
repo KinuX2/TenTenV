@@ -8,18 +8,9 @@ import { Toasts } from './ui/common'
 import { Connect } from './ui/screens/Connect'
 import { Home } from './ui/screens/Home'
 import { playUiClick } from './ui/clickSound'
+import { LoadingParticles } from './ui/LoadingParticles'
 // 3D の部分は必要になってから読み込む（ホーム画面を速く開くため）
 const WorldSession = lazy(() => import('./world/WorldSession').then((m) => ({ default: m.WorldSession })))
-
-const Loading = () => (
-  <div className="loading">
-    <div className="box">
-      <div className="brand">
-        <img src="/icon.svg" alt="" /> TenTenV
-      </div>
-    </div>
-  </div>
-)
 
 const PENDING_INSTANCE = 'ttv.pendingInstance'
 
@@ -80,13 +71,13 @@ export const App: React.FC = () => {
   }, [])
 
   let body: React.ReactNode
-  if (screen.kind === 'dev') body = <WorldSession key={`dev:${screen.worldUrl}`} devUrl={screen.worldUrl} />
+  if (screen.kind === 'dev') body = <WorldSession devUrl={screen.worldUrl} />
   else if (!me || screen.kind === 'connect') body = <Connect />
-  else if (screen.kind === 'world') body = <WorldSession key={screen.instanceId} instanceId={screen.instanceId} />
+  else if (screen.kind === 'world') body = <WorldSession instanceId={screen.instanceId} />
   else body = <Home />
   return (
     <>
-      <Suspense fallback={<Loading />}>{body}</Suspense>
+      <Suspense fallback={<LoadingParticles />}>{body}</Suspense>
       <Toasts />
     </>
   )

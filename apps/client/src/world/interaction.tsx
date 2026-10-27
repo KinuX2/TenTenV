@@ -164,7 +164,7 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
         const reach = 12 * (engine.ctx.world ? 1 : 1)
         const hit = heldId ? null : cast(hi.rayP, hi.rayDir, reach)
         // レイの見た目
-        laser.holder.visible = !heldId && !menuOpen
+        laser.holder.visible = !!hit && !heldId && !menuOpen
         laser.holder.position.copy(hi.rayP)
         laser.holder.quaternion.setFromUnitVectors(new Vector3(0, 0, -1), hi.rayDir)
         const len = hit ? hit.distance : 1.2
