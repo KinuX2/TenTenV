@@ -6,9 +6,11 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 ## デモプレイ動画
 
-[![ホームワールドのデモ動画を見る](docs/images/home-world-walk.png)](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.webm)
+ホームワールド内の移動とメニュー操作を収録した約 12 秒の動画です。
 
-[デモプレイ動画を開く（WebM・約 37 秒）](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.webm)。ホームワールドへの入室、移動、ワールド内メニューを収録しています。
+https://github.com/user-attachments/assets/9b1257e3-23a7-4210-9783-99f6265c59aa
+
+[MP4 ファイルをダウンロード](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.mp4)
 
 ## スクリーンショット
 
