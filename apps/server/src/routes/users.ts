@@ -11,6 +11,7 @@ import { imageType } from '../vrm'
 import { getUser, meInfo, userProfile, userSettings, userSummary, WORLD_SELECT, worldSummary, type AvatarRow, type UserRow, type WorldRow } from '../views'
 import { STATUSES } from '../wsmsg'
 import { likePattern, limitIp } from './util'
+import { uploadQuota } from './uploadQuota'
 
 const ICON_BYTES = 4 * 1024 * 1024
 const FRAMES = ['none', 'round', 'star', 'heart'] as const
@@ -38,6 +39,7 @@ export const userRoutes = (app: App) => {
   const db = app.db
 
   r.get('/api/me', (req) => meInfo(app, requireUser(app, req)))
+  r.get('/api/me/upload-quota', (req) => uploadQuota(app, requireUser(app, req).id))
 
   r.patch('/api/me', async (req) => {
     const me = requireUser(app, req)

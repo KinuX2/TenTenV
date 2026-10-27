@@ -5,7 +5,7 @@ import { L } from '../i18n'
 import { app, useApp } from '../state/app'
 import { Icon } from './icons'
 
-export const Modal: React.FC<{ title: string; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode }> = ({ title, onClose, children, wide, footer }) => {
+export const Modal: React.FC<{ title: string; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode; className?: string; header?: ReactNode }> = ({ title, onClose, children, wide, footer, className, header }) => {
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', k)
@@ -13,9 +13,9 @@ export const Modal: React.FC<{ title: string; onClose: () => void; children: Rea
   }, [onClose])
   return (
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-label={title}>
+      <div className={`modal${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-label={title}>
         <div className="row">
-          <h2 className="grow">{title}</h2>
+          {header ?? <h2 className="grow">{title}</h2>}
           <button className="btn ghost small" onClick={onClose} aria-label={L('閉じる', 'Close')}>
             <Icon name="close" size={18} />
           </button>
@@ -37,9 +37,9 @@ export const UserIcon: React.FC<{ user: Pick<UserSummary, 'displayName' | 'iconU
   )
 }
 
-export const STATUS_COLORS: Record<string, string> = { online: '#4ade80', joinme: '#60a5fa', askme: '#fbbf24', busy: '#f87171', offline: '#6b7280' }
+export const STATUS_COLORS: Record<string, string> = { online: '#91c93f', askme: '#fbbf24', offline: '#6b7280' }
 export const statusLabel = (s: string) =>
-  ({ online: L('オンライン', 'Online'), joinme: L('だれでも歓迎', 'Join me'), askme: L('声をかけて', 'Ask me'), busy: L('取り込み中', 'Busy'), offline: L('オフライン', 'Offline') })[s] ?? s
+  ({ online: L('オンライン', 'Online'), askme: L('声をかけて', 'Ask me'), offline: L('オフライン', 'Offline') })[s] ?? s
 
 export const Toggle: React.FC<{ label: ReactNode; value: boolean; onChange: (v: boolean) => void; hint?: string }> = ({ label, value, onChange, hint }) => (
   <label className="switch">

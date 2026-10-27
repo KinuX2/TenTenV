@@ -165,6 +165,8 @@ describe('WebSocket（/ws）', () => {
       { t: 'signal', to: 'p', data: { kind: 'evil' } },
       { t: 'relay', to: 'p', ch: 'x', data: '' },
       { t: 'status', status: 'online', statusText: 'x'.repeat(200) },
+      { t: 'status', status: 'joinme' },
+      { t: 'status', status: 'busy' },
       { t: 'kick', peerId: 'p', reason: 5 },
     ]
     for (const m of cases) {
@@ -336,8 +338,8 @@ describe('WebSocket（/ws）', () => {
     const cq = await WsClient.connect(srv, q.token)
     const fs = await cp.next('friend-status', (m) => m.user.id === q.me.id && m.online)
     assert.equal(fs.location, null)
-    cq.send({ t: 'status', status: 'busy', statusText: '作業中' })
-    const fs2 = await cp.next('friend-status', (m) => m.user.status === 'busy')
+    cq.send({ t: 'status', status: 'askme', statusText: '作業中' })
+    const fs2 = await cp.next('friend-status', (m) => m.user.status === 'askme')
     assert.equal(fs2.user.statusText, '作業中')
     // 現在地（フレンドには見える設定）
     const inst = await instance(q.token)

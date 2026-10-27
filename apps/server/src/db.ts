@@ -212,6 +212,7 @@ export class Db {
     this.raw = new DatabaseSync(file)
     this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
     this.raw.exec(SCHEMA)
+    this.raw.exec("UPDATE users SET status = 'online' WHERE status IN ('joinme', 'busy')")
   }
 
   private stmt(sql: string) {

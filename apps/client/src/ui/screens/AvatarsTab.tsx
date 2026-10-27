@@ -16,10 +16,11 @@ import { actions } from '../actions'
 import { Empty, Modal, Range, run, useAsync } from '../common'
 import { ReportModal } from './FriendsTab'
 import { Icon } from '../icons'
+import { UploadQuotaBar } from '../UploadQuotaBar'
 
 /** アバターの見本（ゆっくり回る） */
 export const AvatarPreview: React.FC<{ avatar: AvatarRef; height?: number; onModel?: (m: AvatarModel | null) => void; capture?: (fn: () => Promise<Blob | null>) => void }> = ({ avatar, height = 320, onModel, capture }) => (
-  <div style={{ height, borderRadius: 12, overflow: 'hidden', background: 'radial-gradient(ellipse at 50% 40%, #27304f, #0d0f17)' }}>
+  <div style={{ height, borderRadius: 12, overflow: 'hidden', background: 'radial-gradient(ellipse at 50% 40%, #20291a, #050705)' }}>
     <Canvas camera={{ fov: 30, position: [0, 1.1, 4.2] }} gl={{ preserveDrawingBuffer: true, antialias: true }}>
       <ambientLight intensity={0.8} />
       <directionalLight position={[2, 4, 3]} intensity={2} />
@@ -91,13 +92,16 @@ const PreviewAvatar: React.FC<{ avatar: AvatarRef; onModel?: (m: AvatarModel | n
 
 export const AvatarsTab: React.FC = () => {
   const api = useApp((s) => s.api)!
+  const info = useApp((s) => s.info)
   const me = useApp((s) => s.me)!
   const current = useApp((s) => s.avatar)
   const [mode, setMode] = useState<'mine' | 'favorites'>('mine')
   const [detail, setDetail] = useState<AvatarInfo | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [avatarHeight, setAvatarHeight] = useState<number | null>(null)
   const scale = useSettings((s) => s.s.avatarScale)
   const list = useAsync(() => (mode === 'mine' ? api.avatars({ mine: true }) : api.avatars({ favorites: true })), [api, mode])
+  const quota = useAsync(() => api.uploadQuota(), [api])
   const useBuiltin = (id: string) => actions.setAvatar({ ...DEFAULT_AVATAR, id })
   const useVrm = (a: AvatarInfo) => {
     actions.setAvatar({ kind: 'vrm', id: a.id, url: api.abs(a.fileUrl)!, sha256: a.sha256, scale: 1, outfits: outfitTokens(a.extensions, new Set((a.extensions?.outfits ?? []).filter((o) => o.default).map((o) => o.id))) })
@@ -106,11 +110,14 @@ export const AvatarsTab: React.FC = () => {
   return (
     <div className="col">
       <h1>{L('アバター', 'Avatars')}</h1>
+      <UploadQuotaBar quota={quota.data} limitBytes={info?.limits.uploadBytes ?? 3 * 1024 ** 3} error={quota.error} />
       <div className="row" style={{ alignItems: 'stretch' }}>
         <div className="card col" style={{ flex: '1 1 280px', minWidth: 0 }}>
           <div className="section-title">{L('今のアバター', 'Current avatar')}</div>
-          <AvatarPreview avatar={current} height={300} />
-          <Range label={L('大きさ', 'Size')} value={scale} min={0.3} max={3} step={0.05} onChange={(v) => useSettings.getState().set({ avatarScale: v })} format={(v) => `${Math.round(v * 100)}%`} />
+          <AvatarPreview avatar={current} height={300} onModel={(model) => setAvatarHeight(model?.height ?? null)} />
+          {avatarHeight ? (
+            <Range label={L('身長', 'Height')} value={Math.round(avatarHeight * scale * 100)} min={Math.ceil(avatarHeight * 30)} max={Math.floor(avatarHeight * 300)} step={1} onChange={(cm) => useSettings.getState().set({ avatarScale: cm / (avatarHeight * 100) })} format={(cm) => `${cm} cm`} />
+          ) : <span className="muted">{L('アバターを読み込み中', 'Loading avatar')}</span>}
         </div>
         <div className="card col" style={{ flex: '1 1 280px', minWidth: 0 }}>
           <div className="section-title">{L('標準のアバター', 'Built-in avatar')}</div>
@@ -119,7 +126,6 @@ export const AvatarsTab: React.FC = () => {
               <button key={b.id} className={`btn${current.kind === 'builtin' && current.id === b.id ? ' active' : ''}`} onClick={() => useBuiltin(b.id)} style={{ justifyContent: 'space-between' }}>
                 <img src={b.thumbnailUrl} alt="" width={36} height={36} style={{ borderRadius: 6, objectFit: 'cover' }} />
                 <span className="grow" style={{ textAlign: 'left' }}>{b.name}</span>
-                {b.credit && <span className="muted small">{L(b.credit.ja, b.credit.en)}</span>}
               </button>
             ))}
           </div>
@@ -159,8 +165,8 @@ export const AvatarsTab: React.FC = () => {
           )
         })}
       </div>
-      {detail && <AvatarDetail a={detail} me={me.id} onUse={() => (useVrm(detail), setDetail(null))} onClose={() => (setDetail(null), list.reload())} />}
-      {uploading && <AvatarUpload onClose={() => (setUploading(false), list.reload())} />}
+      {detail && <AvatarDetail a={detail} me={me.id} onUse={() => (useVrm(detail), setDetail(null))} onClose={() => (setDetail(null), list.reload(), quota.reload())} />}
+      {uploading && <AvatarUpload onClose={() => (setUploading(false), list.reload(), quota.reload())} />}
     </div>
   )
 }

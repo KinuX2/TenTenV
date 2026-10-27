@@ -8,14 +8,13 @@ import { useModeration } from '../../state/moderation'
 import { refreshSocial, useNet } from '../../state/net'
 import { useSettings } from '../../state/settings'
 import type { WorldEngine } from '../../world/engine'
-import { actions, EXPRESSIONS, GESTURES, SLEEP_POSES } from '../actions'
+import { actions, EXPRESSIONS, SLEEP_POSES } from '../actions'
 import { accessLabel, run, statusLabel, useAsync } from '../common'
 import { goToWorld, instanceLink, joinInstance } from '../join'
 import { useMenu } from '../menuBus'
 import { uiBridge } from '../bridge'
 import { useTools } from '../../features/tools'
 import { bodyTracking } from '../../features/bodyTracking'
-import { REACTION_ART, REACTION_IDS } from '../icons'
 import { useAvatarExt } from '../../state/avatarExt'
 import { SettingsItems } from './settingsItems'
 import { pct, type MenuItem, type MenuTab } from './model'
@@ -39,9 +38,9 @@ export const useMenuTabs = (engine: WorldEngine): MenuTab[] => {
   const t = (id: string, icon: string, ja: string, en: string): MenuTab => ({ id, icon: { icon }, label: L(ja, en) })
   return [
     t('main', 'home', 'メイン', 'Main'),
-    { id: 'expressions', icon: { face: 'happy' }, label: L('表情・ポーズ', 'Expressions') },
+    { id: 'expressions', icon: { face: 'happy' }, label: L('表情', 'Expressions') },
+    t('poses', 'bed', 'ポーズ', 'Poses'),
     t('tools', 'sparkle', '道具', 'Tools'),
-    t('people', 'users', '参加者', 'People'),
     t('friends', 'users', 'フレンド', 'Friends'),
     t('chat', 'chat', 'チャット', 'Chat'),
     t('avatars', 'avatar', 'アバター', 'Avatars'),
@@ -62,17 +61,22 @@ const MainItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }) =
   const me = useApp((s) => s.me)
   const info = useApp((s) => s.info)
   const t = useTools()
-  const openPage = (page: 'worlds' | 'avatars' | 'people' | 'settings' | 'instance' | 'notifications') => useMenu.getState().setPage(page)
-  const openChat = () => {
-    useMenu.getState().setPage('chat')
+  const openPage = (page: 'worlds' | 'avatars' | 'expressions' | 'poses' | 'instance' | 'notifications') => useMenu.getState().setPage(page)
+  const calibrateTrackers = () => {
+    if (!bodyTracking.available) {
+      uiBridge.notify(L('腰・左右の足のトラッカーを接続してください', 'Connect the hip and both foot trackers'))
+      return
+    }
+    bodyTracking.calibrate()
+    close()
   }
   const items: MenuItem[] = [
     { t: 'section', title: L('クイックリンク', 'Quick Links') },
     { t: 'buttons', size: 'big', items: [
       ...(!engine.ctx.dev ? [{ label: L('ワールド', 'Worlds'), icon: { icon: 'globe' }, onClick: () => openPage('worlds') }] : []),
       { label: L('アバター', 'Avatars'), icon: { icon: 'avatar' }, onClick: () => openPage('avatars') },
-      { label: L('ソーシャル', 'Social'), icon: { icon: 'users' }, onClick: () => openPage('people') },
-      { label: L('設定', 'Settings'), icon: { icon: 'settings' }, onClick: () => openPage('settings') },
+      { label: L('表情', 'Expressions'), icon: { face: 'happy' }, onClick: () => openPage('expressions') },
+      { label: L('ポーズ', 'Poses'), icon: { icon: 'bed' }, onClick: () => openPage('poses') },
     ] },
     { t: 'section', title: L('クイックアクション', 'Quick Actions') },
     {
@@ -81,11 +85,10 @@ const MainItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }) =
       items: [
         { label: muted ? L('ミュート中', 'Muted') : L('マイク ON', 'Mic on'), icon: { icon: muted ? 'micOff' : 'mic' }, on: muted, onClick: actions.toggleMute },
         { label: L('リスポーン', 'Respawn'), icon: { icon: 'respawn' }, onClick: () => (actions.respawn(), close()) },
-        { label: L('チャット', 'Chat'), icon: { icon: 'chat' }, onClick: openChat },
+        { label: bodyTracking.calibrated ? L('フルトラ再調整', 'Recalibrate body') : L('フルトラ調整', 'Calibrate body'), icon: { icon: 'stand' }, on: bodyTracking.available && !bodyTracking.calibrated, onClick: calibrateTrackers },
         { label: L('鏡', 'Mirror'), icon: { icon: 'mirror' }, on: t.mirror, onClick: () => actions.tool({ mirror: !t.mirror }) },
         { label: L('フェイスミラー', 'Face mirror'), icon: { icon: 'selfie' }, on: t.faceMirror, onClick: () => actions.tool({ faceMirror: !t.faceMirror }) },
         ...(me?.homeWorldId || info?.defaultHomeWorldId ? [{ label: L('ホームワールド', 'Home world'), icon: { icon: 'home' }, onClick: actions.goHome }] : []),
-        ...(bodyTracking.available ? [{ label: bodyTracking.calibrated ? L('トラッカーを合わせ直す', 'Recalibrate trackers') : L('トラッカーを合わせる', 'Calibrate trackers'), icon: { icon: 'stand' }, on: !bodyTracking.calibrated, onClick: () => (bodyTracking.calibrate(), close()) }] : []),
         ...(vr && exitVR ? [{ label: L('VR を終える', 'Exit VR'), icon: { icon: 'vr' }, onClick: exitVR }] : []),
         { label: L('退出', 'Leave'), icon: { icon: 'leave' }, danger: true, onClick: () => void confirmThen(L('ワールドから出ますか？', 'Leave this world?'), actions.leave) },
       ],
@@ -93,19 +96,18 @@ const MainItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }) =
     {
       t: 'note',
       text: vr
-        ? L('左スティック: 移動 · 右スティック: 向き · トリガー: 押す · グリップ: つかむ · 左手の Y / B: メニュー · 右手の B: 表情・ポーズ', 'Left stick: move · Right stick: turn · Trigger: press · Grip: grab · Left Y/B: menu · Right B: expressions')
+        ? L('左スティック: 移動 · 右スティック: 向き · トリガー: 押す · グリップ: つかむ · 左手の Y: メニュー', 'Left stick: move · Right stick: turn · Trigger: press · Grip: grab · Left Y: menu')
         : L('操作: WASD 移動 · Space ジャンプ · C しゃがむ · Z 伏せる · Enter チャット · M ミュート · V 押して話す · H 三人称 · ` リスポーン', 'Controls: WASD move · Space jump · C crouch · Z prone · Enter chat · M mute · V push-to-talk · H 3rd person · ` respawn'),
     },
   ]
   return <>{render(items)}</>
 }
 
-// ---------------------------------------------------------------- 表情・ポーズ
+// ---------------------------------------------------------------- 表情
 
 const ExpressionItems: React.FC<PageProps> = ({ render }) => {
   const ext = useAvatarExt((s) => s.ext)
   const active = useAvatarExt((s) => s.active)
-  const autoSleep = useSettings((s) => s.s.autoSleep)
   const items: MenuItem[] = []
   if (ext && (ext.outfits?.length || ext.actions?.length)) {
     items.push({ t: 'section', title: L('アバターのアクション', 'Avatar actions') })
@@ -121,18 +123,19 @@ const ExpressionItems: React.FC<PageProps> = ({ render }) => {
   items.push(
     { t: 'section', title: L('表情', 'Expression') },
     { t: 'buttons', size: 'big', items: EXPRESSIONS.map((e) => ({ key: String(e.id), label: L(e.ja, e.en), icon: { face: e.id ?? 'auto' }, onClick: () => actions.setExpression(e.id) })) },
-    { t: 'section', title: L('手の形（ジェスチャー）', 'Hand gestures') },
-    { t: 'note', text: L('VR では指の形から自動で決まります。ここで選ぶと固定します（PC は Alt + 1〜8、0 で戻す）', 'In VR this follows your fingers; picking one locks it (desktop: Alt+1–8, 0 resets)') },
-    { t: 'buttons', size: 'big', items: [...GESTURES.map((g) => ({ key: g.id, label: L(g.ja, g.en), icon: { hand: g.id }, onClick: () => actions.setGesture(g.id) })), { key: 'auto', label: L('自動に戻す', 'Automatic'), icon: { icon: 'respawn' }, onClick: () => actions.setGesture(null) }] },
-    { t: 'buttons', size: 'small', items: GESTURES.slice(1).map((g) => ({ key: `l:${g.id}`, label: `${L('左', 'L')} ${L(g.ja, g.en)}`, icon: { hand: g.id }, onClick: () => actions.setGesture(g.id, 'left') })) },
-    { t: 'buttons', size: 'small', items: GESTURES.slice(1).map((g) => ({ key: `r:${g.id}`, label: `${L('右', 'R')} ${L(g.ja, g.en)}`, icon: { hand: g.id }, onClick: () => actions.setGesture(g.id, 'right') })) },
+  )
+  return <>{render(items)}</>
+}
+
+// ---------------------------------------------------------------- ポーズ
+
+const PoseItems: React.FC<PageProps> = ({ render }) => {
+  const autoSleep = useSettings((s) => s.s.autoSleep)
+  return <>{render([
     { t: 'section', title: L('寝る・横になる', 'Lie down') },
     { t: 'buttons', size: 'big', items: SLEEP_POSES.map((p) => ({ key: String(p.id), label: L(p.ja, p.en), icon: { icon: p.id === 0 ? 'stand' : 'bed' }, onClick: () => actions.setSleep(p.id) })) },
     { t: 'toggle', label: L('寝転びの自動判定（VR）', 'Auto sleep pose (VR)'), value: autoSleep, onChange: (v) => useSettings.getState().set({ autoSleep: v }) },
-    { t: 'section', title: L('頭の上にリアクション', 'Reactions') },
-    { t: 'buttons', size: 'small', items: REACTION_IDS.map((s) => ({ key: s, label: L(REACTION_ART[s].label, REACTION_ART[s].labelEn), icon: { reaction: s }, iconOnly: true, onClick: () => actions.emoji(s) })) },
-  )
-  return <>{render(items)}</>
+  ])}</>
 }
 
 // ---------------------------------------------------------------- 道具
@@ -146,12 +149,39 @@ const ToolItems: React.FC<PageProps> = ({ render }) => {
       size: 'big',
       items: [
         { label: L('パーソナルミラー', 'Personal mirror'), icon: { icon: 'mirror' }, on: t.mirror, onClick: () => actions.tool({ mirror: !t.mirror }) },
-        { label: t.mirrorWorld ? L('鏡: 全部映す', 'Mirror: all') : L('鏡: アバターだけ', 'Mirror: avatars'), icon: { icon: 'landscape' }, onClick: () => actions.tool({ mirrorWorld: !t.mirrorWorld }) },
         { label: L('フェイスミラー', 'Face mirror'), icon: { icon: 'selfie' }, on: t.faceMirror, onClick: () => actions.tool({ faceMirror: !t.faceMirror }) },
       ],
     },
   ]
-  if (t.faceMirror) items.push({ t: 'range', label: L('フェイスミラーの大きさ', 'Face mirror size'), value: t.faceMirrorSize, min: 0.6, max: 2, step: 0.1, format: pct, onChange: (faceMirrorSize) => actions.tool({ faceMirrorSize }) })
+  if (t.faceMirror) items.push(
+    { t: 'section', title: L('フェイスミラー', 'Face mirror') },
+    { t: 'range', label: L('不透明度', 'Opacity'), value: t.faceMirrorOpacity, min: 0.1, max: 1, step: 0.05, format: pct, onChange: (faceMirrorOpacity) => actions.tool({ faceMirrorOpacity }) },
+    { t: 'section', title: L('PC・スマホでの表示', 'Desktop and mobile') },
+    { t: 'dropdown', label: L('表示位置', 'Anchor'), value: t.faceMirrorDesktopAnchor, options: [
+      { v: 'center', label: L('正面', 'Center') },
+      { v: 'leftTop', label: L('左上', 'Top left') },
+      { v: 'rightTop', label: L('右上', 'Top right') },
+      { v: 'leftBottom', label: L('左下', 'Bottom left') },
+      { v: 'rightBottom', label: L('右下', 'Bottom right') },
+    ], onChange: (faceMirrorDesktopAnchor) => actions.tool({ faceMirrorDesktopAnchor: faceMirrorDesktopAnchor as typeof t.faceMirrorDesktopAnchor }) },
+    { t: 'range', label: L('大きさ', 'Size'), value: t.faceMirrorSize, min: 0.08, max: 0.5, step: 0.01, format: pct, onChange: (faceMirrorSize) => actions.tool({ faceMirrorSize }) },
+    { t: 'range', label: L('左右位置', 'Horizontal position'), value: t.faceMirrorDesktopX, min: -1, max: 1, step: 0.05, format: (v) => v.toFixed(2), onChange: (faceMirrorDesktopX) => actions.tool({ faceMirrorDesktopX }) },
+    { t: 'range', label: L('上下位置', 'Vertical position'), value: t.faceMirrorDesktopY, min: -1, max: 1, step: 0.05, format: (v) => v.toFixed(2), onChange: (faceMirrorDesktopY) => actions.tool({ faceMirrorDesktopY }) },
+    { t: 'section', title: L('VR での表示', 'VR') },
+    { t: 'dropdown', label: L('表示位置', 'Anchor'), value: t.faceMirrorAnchor, options: [
+      { v: 'center', label: L('正面', 'Center') },
+      { v: 'leftTop', label: L('左上', 'Top left') },
+      { v: 'rightTop', label: L('右上', 'Top right') },
+      { v: 'leftBottom', label: L('左下', 'Bottom left') },
+      { v: 'rightBottom', label: L('右下', 'Bottom right') },
+    ], onChange: (faceMirrorAnchor) => actions.tool({ faceMirrorAnchor: faceMirrorAnchor as typeof t.faceMirrorAnchor }) },
+    { t: 'range', label: L('大きさ', 'Size'), value: t.faceMirrorVrSize, min: 0.08, max: 0.5, step: 0.01, format: pct, onChange: (faceMirrorVrSize) => actions.tool({ faceMirrorVrSize }) },
+    { t: 'range', label: L('左右位置', 'Horizontal position'), value: t.faceMirrorVrX, min: -1, max: 1, step: 0.05, format: (v) => v.toFixed(2), onChange: (faceMirrorVrX) => actions.tool({ faceMirrorVrX }) },
+    { t: 'range', label: L('上下位置', 'Vertical position'), value: t.faceMirrorVrY, min: -1, max: 1, step: 0.05, format: (v) => v.toFixed(2), onChange: (faceMirrorVrY) => actions.tool({ faceMirrorVrY }) },
+    { t: 'section', title: L('顔の撮影', 'Face framing') },
+    { t: 'range', label: L('撮影範囲', 'Framing'), value: t.faceMirrorCaptureScale, min: 0.6, max: 1.8, step: 0.05, format: pct, onChange: (faceMirrorCaptureScale) => actions.tool({ faceMirrorCaptureScale }) },
+    { t: 'range', label: L('撮影高さ', 'Vertical framing'), value: t.faceMirrorCaptureY, min: -0.2, max: 0.2, step: 0.01, format: (v) => `${Math.round(v * 100)}cm`, onChange: (faceMirrorCaptureY) => actions.tool({ faceMirrorCaptureY }) },
+  )
   items.push({ t: 'note', text: L('パーソナルミラーは下の取っ手を押すと持てます（VR は取っ手の近くでグリップ）。もう一度押すと置きます。', 'Press the handle under the personal mirror to carry it (grip near it in VR). Press again to put it down.') })
   return <>{render(items)}</>
 }
@@ -283,16 +313,20 @@ const PeopleItems: React.FC<PageProps> = ({ engine, render }) => {
 
 // ---------------------------------------------------------------- フレンド
 
-const FriendsItems: React.FC<PageProps> = ({ engine, render }) => {
+const FriendsItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }) => {
+  const [mode, setMode] = useState<'friends' | 'people'>('friends')
+  const tabs: MenuItem = { t: 'tabs', value: mode, options: [{ v: 'friends', label: L('フレンド', 'Friends') }, { v: 'people', label: L('参加者', 'People') }], onChange: (v) => setMode(v as 'friends' | 'people') }
   const friends = useNet((s) => s.friends)
   const api = useApp((s) => s.api)
   const [selected, setSelected] = useState<string | null>(null)
   const [reporting, setReporting] = useState<string | null>(null)
   useEffect(() => { void refreshSocial() }, [])
+  if (mode === 'people') return <PeopleItems engine={engine} vr={vr} close={close} exitVR={exitVR} render={(items) => render([tabs, ...items])} />
   if (selected && reporting) return <ReportItems userId={selected} name={reporting} back={() => setReporting(null)} render={render} />
   if (selected) return <ProfileItems engine={engine} userId={selected} back={() => setSelected(null)} report={setReporting} render={render} />
   const sorted = [...friends].sort((a, b) => Number(b.online) - Number(a.online) || a.displayName.localeCompare(b.displayName))
   const items: MenuItem[] = [
+    tabs,
     { t: 'section', title: `${L('フレンド', 'Friends')} (${friends.length})` },
     { t: 'buttons', size: 'small', items: [{ label: L('更新', 'Refresh'), icon: { icon: 'respawn' }, onClick: () => void refreshSocial() }] },
   ]
@@ -344,6 +378,7 @@ const AvatarItems: React.FC<PageProps> = ({ render }) => {
 
 const WorldDetailItems: React.FC<PageProps & { worldId: string; back: () => void }> = ({ engine, worldId, back, close, render }) => {
   const api = useApp((s) => s.api)!
+  const me = useApp((s) => s.me)!
   const world = useAsync<WorldInfo>(() => api.world(worldId), [api, worldId])
   const instances = useAsync<InstanceSummary[]>(() => api.instances({ worldId }), [api, worldId])
   const [access, setAccess] = useState<AccessLevel>('public')
@@ -371,6 +406,16 @@ const WorldDetailItems: React.FC<PageProps & { worldId: string; back: () => void
     }
   }
   const w = world.data
+  const toggleFavorite = async () => {
+    if (!w) return
+    const result = await run(() => api.favorite('world', w.id, !w.favorite))
+    if (result !== null) world.reload()
+  }
+  const setHome = async () => {
+    if (!w) return
+    const updated = await run(() => api.updateMe({ homeWorldId: w.id }), L('ホームに設定しました', 'Set as home'))
+    if (updated) useApp.getState().setMe(updated)
+  }
   const items: MenuItem[] = [
     { t: 'buttons', size: 'small', items: [{ label: L('ワールド一覧', 'Worlds'), icon: { icon: 'arrowLeft' }, onClick: back }] },
   ]
@@ -381,7 +426,10 @@ const WorldDetailItems: React.FC<PageProps & { worldId: string; back: () => void
   }
   items.push(
     { t: 'section', title: w.name },
-    { t: 'card', key: w.id, title: w.name, sub: `${w.author.displayName} · ${w.occupants}${L('人', ' online')} · ${w.favoriteCount}${L('件のお気に入り', ' favorites')}`, icon: { image: w.thumbnailUrl ? api.abs(w.thumbnailUrl) : null, fallback: 'globe' } },
+    { t: 'card', key: w.id, title: w.name, sub: `${w.author.displayName} · ${w.occupants}${L('人', ' online')} · ${w.favoriteCount}${L('件のお気に入り', ' favorites')}`, icon: { image: w.thumbnailUrl ? api.abs(w.thumbnailUrl) : null, fallback: 'globe' }, buttons: [
+      { label: w.favorite ? L('お気に入り済み', 'Favorited') : L('お気に入り', 'Favorite'), icon: { icon: 'heart' }, on: w.favorite, onClick: () => void toggleFavorite() },
+      ...(me.homeWorldId === w.id ? [] : [{ label: L('ホームにする', 'Set as home'), icon: { icon: 'home' }, onClick: () => void setHome() }]),
+    ] },
     { t: 'note', text: w.description || L('説明はありません', 'No description') },
     { t: 'section', title: L('新しいインスタンス', 'New Instance') },
     { t: 'choice', label: L('公開範囲', 'Access'), value: access, options: (['public', 'friends+', 'friends', 'invite+', 'invite'] as AccessLevel[]).map((v) => ({ v, label: accessLabel(v) })), onChange: (value) => setAccess(value as AccessLevel) },
@@ -569,8 +617,8 @@ const DebugItems: React.FC<PageProps> = ({ engine, render }) => {
 export const MENU_PAGES: Record<string, React.FC<PageProps>> = {
   main: MainItems,
   expressions: ExpressionItems,
+  poses: PoseItems,
   tools: ToolItems,
-  people: PeopleItems,
   friends: FriendsItems,
   avatars: AvatarItems,
   worlds: WorldItems,

@@ -18,6 +18,8 @@ export const LAYERS = {
   NO_MIRROR: 11,
   /** アバター（鏡にワールドを映さない設定でも映る）。1・2 は WebXR が左右の目に使うので避ける */
   AVATAR: 12,
+  /** 自分の顔のプレビューだけに映すアバター */
+  FACE_MIRROR: 13,
 } as const
 
 // ---------- MirrorSurface ----------

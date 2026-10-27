@@ -9,6 +9,7 @@ import type {
   NotificationEntry,
   ReportInput,
   ServerInfo,
+  UploadQuota,
   SharedFileInfo,
   UserProfile,
   UserSummary,
@@ -107,7 +108,8 @@ export class Api {
   misskeyFinish = (session: string) => this.req<{ token: string; me: MeInfo }>('POST', '/api/auth/misskey/finish', { session })
   logout = () => this.req<void>('POST', '/api/auth/logout')
   me = () => this.req<MeInfo>('GET', '/api/me')
-  updateMe = (p: Partial<Pick<MeInfo, 'displayName' | 'bio' | 'links' | 'statusText' | 'status' | 'decoration' | 'settings' | 'homeWorldId' | 'currentAvatarId'>>) => this.req<MeInfo>('PATCH', '/api/me', p)
+  uploadQuota = () => this.req<UploadQuota>('GET', '/api/me/upload-quota')
+  updateMe = (p: Partial<Pick<MeInfo, 'displayName' | 'bio' | 'links' | 'statusText' | 'status' | 'settings' | 'homeWorldId' | 'currentAvatarId'>>) => this.req<MeInfo>('PATCH', '/api/me', p)
   uploadIcon = (file: Blob) => this.upload<MeInfo>('POST', '/api/me/icon', file, file.type || 'image/png')
 
   // ---- ユーザー・フレンド ----

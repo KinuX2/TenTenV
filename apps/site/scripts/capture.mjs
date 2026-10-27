@@ -107,8 +107,6 @@ try {
   await a.waitForTimeout(5000)
   await c.evaluate(() => window.__ttvEngine.session.sendChat('ようこそ！一緒に遊ぼう'))
   await a.waitForTimeout(1500)
-  await d.evaluate(() => window.__ttvEngine.session.emit('sys.emoji', { e: '🎉' }, 'all'))
-  await a.waitForTimeout(800)
   await shot(a, 'social')
 
   // 広場の全景（入口のアーチから）

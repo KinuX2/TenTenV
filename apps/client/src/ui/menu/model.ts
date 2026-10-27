@@ -3,7 +3,7 @@
 // （ホーム画面の設定だけは 3D の外なので ui/menu/DomItems.tsx で描く）
 
 /** 項目に添える図柄 */
-export type MenuIcon = { icon: string } | { face: string } | { hand: string } | { reaction: string } | { image: string | null; fallback?: string }
+export type MenuIcon = { icon: string } | { face: string } | { hand: string } | { image: string | null; fallback?: string }
 
 export interface MenuButton {
   key?: string
@@ -31,7 +31,7 @@ export type MenuItem =
   /** ボタンの並び。big は図柄つきの大きなボタン（4 列）、small は小さなボタン（折り返し） */
   | { t: 'buttons'; size: 'big' | 'small'; items: MenuButton[] }
   | { t: 'toggle'; label: string; hint?: string; value: boolean; onChange: (v: boolean) => void }
-  | { t: 'range'; label: string; value: number; min: number; max: number; step: number; format?: (v: number) => string; onChange: (v: number) => void }
+  | { t: 'range'; label: string; value: number; min: number; max: number; step: number; singleStep?: boolean; format?: (v: number) => string; onChange: (v: number) => void }
   | { t: 'choice'; label: string; value: string; options: Option[]; onChange: (v: string) => void }
   /** 長い選択肢を一つの欄にまとめる */
   | { t: 'dropdown'; label: string; value: string; options: Option[]; onChange: (v: string) => void }

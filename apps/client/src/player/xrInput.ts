@@ -50,6 +50,8 @@ const make = (): HandInput => ({
 
 export const xrInput = { left: make(), right: make(), active: false }
 
+if (import.meta.env.DEV) (window as unknown as { __ttvXRInput?: typeof xrInput }).__ttvXRInput = xrInput
+
 /** 手を振るわせる（触れたとき・つかんだとき） */
 export const haptic = (hand: 'left' | 'right', strength = 0.5, ms = 30) => {
   const src = xrInput[hand].source

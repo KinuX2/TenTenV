@@ -8,6 +8,7 @@ import { useApp } from '../../state/app'
 import { stopSignal, useNet } from '../../state/net'
 import { useSettings, type DeviceSettings } from '../../state/settings'
 import { activeEngine } from '../../state/activeEngine'
+import { BUNDLED_AVATARS, bundledAvatar } from '../../avatar/bundled'
 import { OSC_BRIDGE_URL, oscState } from '../../features/oscFace'
 import { bodyTracking } from '../../features/bodyTracking'
 import { actions } from '../actions'
@@ -95,7 +96,6 @@ const useMovement = (): MenuItem[] => {
     { t: 'range', label: L('スナップの角度', 'Snap angle'), value: s.snapAngle, min: 10, max: 90, step: 5, format: (v) => `${v}°`, onChange: (snapAngle) => set({ snapAngle }) },
     { t: 'range', label: L('スムーズ旋回の速さ', 'Smooth turn speed'), value: s.smoothTurnSpeed, min: 30, max: 360, step: 10, format: (v) => `${v}°/s`, onChange: (smoothTurnSpeed) => set({ smoothTurnSpeed }) },
     { t: 'range', label: L('移動中の視野の絞り（酔い対策）', 'Comfort vignette'), value: s.vignette, min: 0, max: 1, step: 0.05, format: pct, onChange: (vignette) => set({ vignette }) },
-    { t: 'range', label: L('歩く速さ', 'Walk speed'), value: s.moveSpeed, min: 1, max: 5, step: 0.1, format: (v) => `${v.toFixed(1)}m/s`, onChange: (moveSpeed) => set({ moveSpeed }) },
     { t: 'choice', label: L('VR の移動の向き', 'VR move direction'), value: s.moveDirection, options: [opt('head', '頭', 'Head'), opt('hand', '手', 'Hand')], onChange: (v) => set({ moveDirection: v as DeviceSettings['moveDirection'] }) },
     { t: 'choice', label: L('利き手', 'Dominant hand'), value: s.dominantHand, options: [opt('right', '右', 'Right'), opt('left', '左', 'Left')], onChange: (v) => set({ dominantHand: v as DeviceSettings['dominantHand'] }) },
     { t: 'choice', label: L('ポータルの設置方法', 'Portal Mode'), value: s.portalMode, options: [opt('manual', '手動で設置', 'Place Manually'), opt('front', '前方に設置', 'Drop in Front')], onChange: (v) => set({ portalMode: v as DeviceSettings['portalMode'] }) },
@@ -111,8 +111,8 @@ const useMovement = (): MenuItem[] => {
     {
       t: 'note',
       text: L(
-        'PC: WASD 移動 · Shift 走る · Space ジャンプ · C しゃがむ · Z 伏せる · クリック 押す・つかむ · F 持った物を使う · R / Esc メニュー · Enter チャット · M ミュート · Alt+1〜8 ジェスチャー。VR: 左スティック 移動 · 右スティック 向き · トリガー 押す · グリップ つかむ · 左手の Y メニュー開閉 · 右手の B 表情メニュー',
-        'Desktop: WASD move · Shift run · Space jump · C crouch · Z prone · Click use/grab · F use held · R/Esc menu · Enter chat · M mute · Alt+1–8 gestures. VR: left stick move · right stick turn · trigger press · grip grab · left Y toggle menu · right B expressions',
+        'PC: WASD 移動 · Shift 走る · Space ジャンプ · C しゃがむ · Z 伏せる · クリック 押す・つかむ · F 持った物を使う · R / Esc メニュー · Enter チャット · M ミュート · Alt+1〜8 ジェスチャー。VR: 左スティック 移動（最大で走る） · 右スティック 向き · トリガー 押す · グリップ つかむ · 左手の Y メニュー開閉',
+        'Desktop: WASD move · Shift run · Space jump · C crouch · Z prone · Click use/grab · F use held · R/Esc menu · Enter chat · M mute · Alt+1–8 gestures. VR: left stick move (full tilt to run) · right stick turn · trigger press · grip grab · left Y toggle menu',
       ),
     },
   ]
@@ -121,6 +121,22 @@ const useMovement = (): MenuItem[] => {
 const useAvatarTracking = (): MenuItem[] => {
   const [s, set] = useS()
   useTick(500)
+  const avatar = useApp((x) => x.avatar)
+  const [homeAvatarHeight, setHomeAvatarHeight] = useState<number | null>(null)
+  useEffect(() => {
+    if (activeEngine()) return
+    const src = avatar.kind === 'vrm' ? { url: avatar.url, sha256: avatar.sha256 } : (bundledAvatar(avatar.id) ?? BUNDLED_AVATARS[0])
+    let alive = true
+    setHomeAvatarHeight(null)
+    void import('../../avatar/vrm').then(({ loadVrmAvatar }) => loadVrmAvatar(src.url, src.sha256)).then((model) => {
+      if (alive) setHomeAvatarHeight(model.height)
+      model.dispose()
+    }).catch(() => {
+      if (alive) setHomeAvatarHeight(null)
+    })
+    return () => { alive = false }
+  }, [avatar.kind, avatar.kind === 'vrm' ? avatar.sha256 : avatar.id])
+  const avatarHeight = activeEngine()?.localAvatarModel?.height ?? homeAvatarHeight
   const native = !!(window as unknown as { __tentenvOSC?: unknown }).__tentenvOSC
   const receiving = oscState.status !== 'off' && performance.now() - oscState.last < 1000
   const status =
@@ -132,7 +148,9 @@ const useAvatarTracking = (): MenuItem[] => {
           ? L('受け取り中', 'Receiving')
           : L('待っています（送り手の送り先を確かめてください）', 'Waiting for data')
   const items: MenuItem[] = [
-    { t: 'range', label: L('アバターの大きさ', 'Avatar size'), value: s.avatarScale, min: 0.3, max: 3, step: 0.05, format: pct, onChange: (avatarScale) => set({ avatarScale }) },
+    avatarHeight
+      ? { t: 'range', label: L('アバターの身長', 'Avatar height'), value: Math.round(avatarHeight * s.avatarScale * 100), min: Math.ceil(avatarHeight * 30), max: Math.floor(avatarHeight * 300), step: 1, singleStep: true, format: (v) => `${v} cm`, onChange: (cm) => set({ avatarScale: cm / (avatarHeight * 100) }) }
+      : { t: 'note', text: L('アバターを読み込み中', 'Loading avatar') },
     { t: 'toggle', label: L('寝転びの自動判定（VR）', 'Auto sleep pose (VR)'), hint: L('床に寝転ぶと寝るポーズになります。誤判定するときは切ってください', 'Lying on the floor switches to a sleep pose'), value: s.autoSleep, onChange: (autoSleep) => set({ autoSleep }) },
     { t: 'toggle', label: L('他の人のアバターをすべて標準アバターにする', 'Show everyone as the default avatar'), value: s.hideAllAvatars, onChange: (hideAllAvatars) => set({ hideAllAvatars }) },
     { t: 'section', title: L('フェイストラッキング（OSC）', 'Face tracking (OSC)') },

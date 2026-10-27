@@ -1,14 +1,13 @@
 // メニューの項目を画面（DOM）に描く。VR では ui/vr/VrItems.tsx が同じ項目を 3D の板に描く
 import { useEffect, useState } from 'react'
 import { Choice, Range, Toggle } from '../common'
-import { FaceIcon, HandIcon, Icon, ReactionIcon } from '../icons'
+import { FaceIcon, HandIcon, Icon } from '../icons'
 import type { MenuButton, MenuIcon, MenuItem } from './model'
 
 export const DomIcon: React.FC<{ icon: MenuIcon; size: number }> = ({ icon, size }) => {
   if ('icon' in icon) return <Icon name={icon.icon} size={size} />
   if ('face' in icon) return <FaceIcon face={icon.face} size={size} />
   if ('hand' in icon) return <HandIcon gesture={icon.hand} size={size} />
-  if ('reaction' in icon) return <ReactionIcon id={icon.reaction} size={size} />
   return icon.image ? <img src={icon.image} alt="" width={size} height={size} style={{ borderRadius: 8, objectFit: 'cover' }} /> : <Icon name={icon.fallback ?? 'user'} size={size} />
 }
 

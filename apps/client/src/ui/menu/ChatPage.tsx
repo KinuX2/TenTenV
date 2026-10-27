@@ -46,35 +46,35 @@ export const ChatPage: React.FC<Props> = ({ engine, vr, openKeyboard }) => {
   })
   return (
     <Container width="100%" height="100%" flexDirection="column" gap={10}>
-      <Container flexShrink={0} height={38} flexDirection="row" alignItems="center" paddingX={13} borderRadius={11} backgroundColor="#192a3b" gap={9}>
-        <Container width={8} height={8} borderRadius={4} backgroundColor="#61dba8" />
-        {label(L('このインスタンス', 'This instance'), 15, '#f3f7fa')}
+      <Container flexShrink={0} height={38} flexDirection="row" alignItems="center" paddingX={13} borderRadius={11} backgroundColor="#151a13" gap={9}>
+        <Container width={8} height={8} borderRadius={4} backgroundColor="#a2d23f" />
+        {label(L('このインスタンス', 'This instance'), 15, '#f1f4ee')}
         <Container flexGrow={1} />
-        {label(`${engine.session.verifiedMembers().length + 1}`, 12, '#aabcca')}
+        {label(`${engine.session.verifiedMembers().length + 1}`, 12, '#a8b3a2')}
       </Container>
-      <Container width="100%" flexGrow={1} flexShrink={1} flexDirection="column" overflow="scroll" scrollbarColor="#34485b" scrollbarWidth={7} paddingX={12} paddingY={12} gap={12} borderRadius={12} backgroundColor="#0b1420">
+      <Container width="100%" flexGrow={1} flexShrink={1} flexDirection="column" overflow="scroll" scrollbarColor="#30392c" scrollbarWidth={7} paddingX={12} paddingY={12} gap={12} borderRadius={12} backgroundColor="#0a0d09">
         {messages.length === 0 && <Container width="100%" flexGrow={1} alignItems="center" justifyContent="center" flexDirection="column" gap={8}>
-          {label(L('まだメッセージはありません', 'No messages yet'), 16, '#d2e3ef')}
-          {label(L('このインスタンスの会話を始めましょう', 'Start a conversation in this instance'), 12, '#8fa7ba')}
+          {label(L('まだメッセージはありません', 'No messages yet'), 16, '#dce6d5')}
+          {label(L('このインスタンスの会話を始めましょう', 'Start a conversation in this instance'), 12, '#a8b3a2')}
         </Container>}
         {messages.slice(-60).map((message) => (
           <Container key={message.id} width="100%" flexDirection="column" alignItems={message.self ? 'flex-end' : 'flex-start'} gap={3}>
-            {!message.self && label(message.name, 11, '#99bacd')}
-            <Container maxWidth="76%" paddingX={13} paddingY={9} borderRadius={16} backgroundColor={message.self ? '#198bd2' : '#25394b'}>
-              {label(message.text, 15, '#f8fcff')}
+            {!message.self && label(message.name, 11, '#a8b3a2')}
+            <Container maxWidth="76%" paddingX={13} paddingY={9} borderRadius={16} backgroundColor={message.self ? '#405c1b' : '#1d231a'}>
+              {label(message.text, 15, '#f1f4ee')}
             </Container>
-            {label(new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 10, '#7892a6')}
+            {label(new Date(message.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 10, '#899783')}
           </Container>
         ))}
       </Container>
       <Container flexShrink={0} height={50} flexDirection="row" alignItems="center" gap={8}>
-        <Container height={44} flexGrow={1} flexShrink={1} flexDirection="row" alignItems="center" paddingX={14} borderRadius={22} borderWidth={1} borderColor="#426078" backgroundColor="#142537">
-          <Input width="100%" value={draft} onValueChange={(value: string) => setDraft(value.slice(0, 300))} placeholder={safeText(L('メッセージを入力', 'Message'))} fontSize={15} fontWeight="bold" color="#f3f7fa" />
+        <Container height={44} flexGrow={1} flexShrink={1} flexDirection="row" alignItems="center" paddingX={14} borderRadius={22} borderWidth={1} borderColor="#30392c" backgroundColor="#151a13">
+          <Input width="100%" value={draft} onValueChange={(value: string) => setDraft(value.slice(0, 300))} placeholder={safeText(L('メッセージを入力', 'Message'))} fontSize={15} fontWeight="bold" color="#f1f4ee" />
         </Container>
-        {vr && <Container width={42} height={42} borderRadius={21} backgroundColor="#253d50" alignItems="center" justifyContent="center" cursor="pointer" onClick={() => { playUiClick(); openKeyboard({ title: L('メッセージ', 'Message'), initial: draft, maxLength: 300, onDone: (text) => { if (text !== null) send(text) } }) }}>
-          <Image src={iconTexture('keyboard', '#e4f3fb')} width={23} height={23} keepAspectRatio={false} />
+        {vr && <Container width={42} height={42} borderRadius={21} backgroundColor="#1d231a" alignItems="center" justifyContent="center" cursor="pointer" onClick={() => { playUiClick(); openKeyboard({ title: L('メッセージ', 'Message'), initial: draft, maxLength: 300, onDone: (text) => { if (text !== null) send(text) } }) }}>
+          <Image src={iconTexture('keyboard', '#f1f4ee')} width={23} height={23} keepAspectRatio={false} />
         </Container>}
-        <Container width={64} height={42} borderRadius={21} backgroundColor={draft.trim() ? '#198bd2' : '#2a4961'} alignItems="center" justifyContent="center" cursor="pointer" onClick={() => { playUiClick(); send() }}>
+        <Container width={64} height={42} borderRadius={21} backgroundColor={draft.trim() ? '#5b8010' : '#2a3524'} alignItems="center" justifyContent="center" cursor="pointer" onClick={() => { playUiClick(); send() }}>
           {label(L('送信', 'Send'), 14, '#ffffff')}
         </Container>
       </Container>

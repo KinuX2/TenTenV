@@ -14,10 +14,8 @@ export const ProfileTab: React.FC = () => {
   const [name, setName] = useState(me.displayName)
   const [bio, setBio] = useState(me.bio)
   const [statusText, setStatusText] = useState(me.statusText)
-  const [status, setStatus] = useState<OnlineStatus>(me.status === 'offline' ? 'online' : me.status)
+  const [status, setStatus] = useState<OnlineStatus>(me.status === 'askme' ? 'askme' : 'online')
   const [links, setLinks] = useState(me.links.join('\n'))
-  const [color, setColor] = useState(me.decoration.color || '#e8ebf5')
-  const [frame, setFrame] = useState(me.decoration.frame)
   const save = async () => {
     const r = await run(
       () =>
@@ -27,7 +25,6 @@ export const ProfileTab: React.FC = () => {
           statusText: statusText.slice(0, 64),
           status,
           links: links.split('\n').map((l) => l.trim()).filter((l) => /^https?:\/\//.test(l)).slice(0, 5),
-          decoration: { color, frame },
         }),
       L('保存しました', 'Saved'),
     )
@@ -56,7 +53,7 @@ export const ProfileTab: React.FC = () => {
       <div className="field">
         <span className="muted small">{L('状態', 'Status')}</span>
         <div className="row">
-          {(['online', 'joinme', 'askme', 'busy'] as OnlineStatus[]).map((s) => (
+          {(['online', 'askme'] as OnlineStatus[]).map((s) => (
             <button key={s} className={`btn small${status === s ? ' active' : ''}`} onClick={() => setStatus(s)}>
               <span className="dot" style={{ background: STATUS_COLORS[s] }} /> {statusLabel(s)}
             </button>
@@ -75,21 +72,6 @@ export const ProfileTab: React.FC = () => {
         {L('リンク（1 行に 1 つ、5 つまで）', 'Links (one per line, up to 5)')}
         <textarea className="input" rows={3} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://" />
       </label>
-      <div className="field">
-        <span className="muted small">{L('名前の装飾', 'Name decoration')}</span>
-        <div className="row">
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-          {(['none', 'round', 'star', 'heart'] as const).map((f) => (
-            <button key={f} className={`btn small${frame === f ? ' active' : ''}`} onClick={() => setFrame(f)}>
-              {f === 'none' ? L('なし', 'None') : <Icon name={f === 'round' ? 'circle' : f} size={16} />}
-            </button>
-          ))}
-          <span style={{ color, fontWeight: 800 }}>
-            {frame === 'star' || frame === 'heart' ? <Icon name={frame} size={16} style={{ fill: 'currentColor', marginRight: 4, verticalAlign: '-2px' }} /> : null}
-            {name}
-          </span>
-        </div>
-      </div>
       <button className="btn primary" onClick={() => void save()}>
         {L('保存', 'Save')}
       </button>

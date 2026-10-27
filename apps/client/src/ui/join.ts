@@ -23,7 +23,7 @@ export const goToWorld = async (worldId: string, access: AccessLevel = 'public')
   }
 }
 
-export const createAndJoin = async (worldId: string, access: AccessLevel, opts: { name?: string; capacity?: number; persistent?: boolean } = {}) => {
+export const createAndJoin = async (worldId: string, access: AccessLevel, opts: { name?: string; capacity?: number } = {}) => {
   const api = app().api
   if (!api) return
   try {

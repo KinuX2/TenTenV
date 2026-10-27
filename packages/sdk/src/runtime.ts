@@ -41,6 +41,8 @@ export interface PlayerPose {
 export interface ClickSpec {
   label?: string
   enabled?: boolean
+  /** VR の指先が触れただけで押せるか（既定: true） */
+  poke?: boolean
   /** 届く距離（m） */
   reach?: number
   onClick: (e: { peerId: string; hand: 'left' | 'right' | 'none'; point: Vector3Tuple }) => void

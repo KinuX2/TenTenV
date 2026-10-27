@@ -78,9 +78,9 @@ try {
   await a.keyboard.press('KeyR')
   await a.waitForTimeout(500)
   // メニューは 3D の板（uikit）なので、タブはメニューの状態から切り替える
-  await a.evaluate(() => window.__ttvMenu.getState().setPage('people'))
+  await a.evaluate(() => window.__ttvMenu.getState().setPage('friends'))
   await a.waitForTimeout(800)
-  await shot(a, '05-alice-menu-people')
+  await shot(a, '05-alice-menu-friends')
 } catch (e) {
   console.error('失敗:', e)
   process.exitCode = 1

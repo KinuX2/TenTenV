@@ -82,7 +82,7 @@ export const Hud: React.FC<{ engine: WorldEngine; onLeave: () => void; worldErro
           <b>{engine.ctx.world.name}</b>
           <span className="muted row" style={{ gap: 4 }}><Icon name="users" size={15} /> {count}</span>
           {!server && <span title={L('親サーバーと切れています。P2P でつながっている人とは続けられます', 'Server connection lost; P2P peers still connected')} style={{ color: '#fbbf24', display: 'inline-flex', gap: 4, alignItems: 'center' }}><Icon name="warning" size={15} /> {L('サーバー切断', 'Server offline')}</span>}
-          {engine.ctx.dev && <span style={{ color: '#7fb2ff' }}>DEV</span>}
+          {engine.ctx.dev && <span style={{ color: 'var(--accent)' }}>DEV</span>}
         </div>
         <div className="grow" />
         {vrOk && (

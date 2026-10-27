@@ -1,14 +1,16 @@
 // この端末の設定（ブラウザに保存）。アカウントの設定は親サーバー側（MeInfo.settings）
 import { create } from 'zustand'
 
+export const WALK_SPEED = 2.2
+
 export interface DeviceSettings {
+  autoEnterVR: boolean
   // ---- 移動・快適性（[16][200]） ----
   turnMode: 'snap' | 'smooth'
   snapAngle: number
   smoothTurnSpeed: number
   /** 移動中に視界の端を暗くする（VR 酔い対策） */
   vignette: number
-  moveSpeed: number
   runMultiplier: number
   /** VR の移動方向: 頭の向き・左手の向き */
   moveDirection: 'head' | 'hand'
@@ -77,11 +79,11 @@ const isMobile = () => /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) |
 export const defaultSettings = (): DeviceSettings => {
   const mobile = isMobile()
   return {
+    autoEnterVR: true,
     turnMode: 'snap',
     snapAngle: 30,
     smoothTurnSpeed: 120,
     vignette: 0.4,
-    moveSpeed: 2.2,
     runMultiplier: 1.9,
     moveDirection: 'head',
     dominantHand: 'right',
@@ -134,12 +136,16 @@ const load = (): DeviceSettings => {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const saved = JSON.parse(raw)
-      if (saved && typeof saved === 'object' && 'relayOnly' in saved) {
-        delete saved.relayOnly
-        try {
-          localStorage.setItem(KEY, JSON.stringify(saved))
-        } catch {
-          // 読み取りだけできる端末でも設定は使える
+      if (saved && typeof saved === 'object') {
+        let changed = false
+        if ('relayOnly' in saved) { delete saved.relayOnly; changed = true }
+        if ('moveSpeed' in saved) { delete saved.moveSpeed; changed = true }
+        if (changed) {
+          try {
+            localStorage.setItem(KEY, JSON.stringify(saved))
+          } catch {
+            // 読み取りだけできる端末でも設定は使える
+          }
         }
       }
       return { ...defaultSettings(), ...saved }

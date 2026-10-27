@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
 import { unzipSync } from 'fflate'
 import { api, buildVrm, buildWorldZip, guest, startServer, type TestServer } from './helpers'
+import { unpackWorld } from '../src/sdk'
 
 /** Misskey の check API の代わり（テスト用） */
 const stubMisskey = (srv: TestServer) => {
@@ -32,10 +33,53 @@ describe('REST API', () => {
   })
   after(() => srv.close())
 
+  test('アバターとワールドで共有するアップロード容量', async () => {
+    const world = buildWorldZip()
+    const avatar = buildVrm('1', 100)
+    const worldBytes = unpackWorld(world, { maxBytes: 1024 * 1024 }).totalBytes
+    const limitBytes = worldBytes + avatar.length + 100
+    const quotaServer = await startServer({ limits: { uploadBytes: limitBytes } })
+    try {
+      const user = await guest(quotaServer, '容量確認')
+      assert.equal((await api(quotaServer, 'GET', '/api/me/upload-quota')).status, 401)
+      const empty = await api(quotaServer, 'GET', '/api/me/upload-quota', { token: user.token })
+      assert.deepEqual(empty.data, { usedBytes: 0, limitBytes, avatarBytes: 0, worldBytes: 0 })
+
+      const w = await api(quotaServer, 'POST', '/api/worlds', { token: user.token, raw: world })
+      assert.equal(w.status, 200, JSON.stringify(w.data))
+      const a = await api(quotaServer, 'POST', '/api/avatars', { token: user.token, raw: avatar })
+      assert.equal(a.status, 200, JSON.stringify(a.data))
+      const used = await api(quotaServer, 'GET', '/api/me/upload-quota', { token: user.token })
+      assert.equal(used.data.worldBytes, worldBytes)
+      assert.equal(used.data.avatarBytes, avatar.length)
+      assert.equal(used.data.usedBytes, worldBytes + avatar.length)
+
+      const over = await api(quotaServer, 'POST', '/api/avatars', { token: user.token, raw: avatar })
+      assert.equal(over.status, 413)
+      assert.equal(over.data.error, 'too_large')
+      const biggerWorld = buildWorldZip({ code: `export default function World() { return null } // ${'x'.repeat(200)}` })
+      const overUpdate = await api(quotaServer, 'PUT', `/api/worlds/${w.data.id}`, { token: user.token, raw: biggerWorld })
+      assert.equal(overUpdate.status, 413)
+      assert.equal((await api(quotaServer, 'GET', `/api/worlds/${w.data.id}`, { token: user.token })).data.version, 1)
+      const replacement = await api(quotaServer, 'PUT', `/api/worlds/${w.data.id}`, { token: user.token, raw: world })
+      assert.equal(replacement.status, 200, JSON.stringify(replacement.data))
+      const afterReplace = await api(quotaServer, 'GET', '/api/me/upload-quota', { token: user.token })
+      assert.equal(afterReplace.data.usedBytes, used.data.usedBytes)
+
+      assert.equal((await api(quotaServer, 'DELETE', `/api/avatars/${a.data.id}`, { token: user.token })).status, 204)
+      const afterDelete = await api(quotaServer, 'GET', '/api/me/upload-quota', { token: user.token })
+      assert.equal(afterDelete.data.usedBytes, worldBytes)
+      assert.equal((await api(quotaServer, 'POST', '/api/avatars', { token: user.token, raw: avatar })).status, 200)
+    } finally {
+      await quotaServer.close()
+    }
+  })
+
   test('サーバー情報', async () => {
     const r = await api(srv, 'GET', '/api/info')
     assert.equal(r.status, 200)
     assert.equal(r.data.protocol, 2)
+    assert.equal(r.data.limits.uploadBytes, 3 * 1024 ** 3)
     assert.equal(r.data.serverId.length, 22)
     assert.equal(r.data.auth.guest, true)
     assert.deepEqual(r.data.auth.misskeyHosts, ['misskey.example'])
@@ -58,18 +102,20 @@ describe('REST API', () => {
 
     const p = await api(srv, 'PATCH', '/api/me', {
       token: g.token,
-      body: { bio: 'よろしく', statusText: 'ひま', status: 'joinme', links: ['https://example.com/'], decoration: { color: '#ff0000', frame: 'star' }, settings: { allowInvites: 'friends' } },
+      body: { bio: 'よろしく', statusText: 'ひま', status: 'askme', links: ['https://example.com/'], decoration: { color: '#ff0000', frame: 'star' }, settings: { allowInvites: 'friends' } },
     })
     assert.equal(p.status, 200, JSON.stringify(p.data))
     assert.equal(p.data.bio, 'よろしく')
     assert.equal(p.data.statusText, 'ひま')
-    assert.equal(p.data.status, 'joinme')
+    assert.equal(p.data.status, 'askme')
     assert.deepEqual(p.data.decoration, { color: '#ff0000', frame: 'star' })
     assert.equal(p.data.settings.allowInvites, 'friends')
     assert.equal(p.data.settings.locationVisibility, 'friends')
     assert.equal((await api(srv, 'PATCH', '/api/me', { token: g.token, body: { decoration: { color: 'red' } } })).status, 400)
     assert.equal((await api(srv, 'PATCH', '/api/me', { token: g.token, body: { links: ['javascript:alert(1)'] } })).status, 400)
     assert.equal((await api(srv, 'PATCH', '/api/me', { token: g.token, body: { status: 'invisible' } })).status, 400)
+    assert.equal((await api(srv, 'PATCH', '/api/me', { token: g.token, body: { status: 'joinme' } })).status, 400)
+    assert.equal((await api(srv, 'PATCH', '/api/me', { token: g.token, body: { status: 'busy' } })).status, 400)
 
     // 検索
     const s = await api(srv, 'GET', `/api/users?q=${encodeURIComponent('太郎')}`, { token: g.token })

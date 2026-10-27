@@ -23,6 +23,8 @@ export const xrStore = createXRStore({
   domOverlay: false,
 })
 
+if (import.meta.env.DEV) (window as unknown as { __ttvXrStore?: typeof xrStore }).__ttvXrStore = xrStore
+
 export const enterVR = async () => {
   try {
     await xrStore.enterVR()

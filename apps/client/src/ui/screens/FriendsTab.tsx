@@ -169,10 +169,7 @@ export const UserModal: React.FC<{ userId: string; onClose: () => void }> = ({ u
           <div className="row">
             <UserIcon user={p} size={72} />
             <div className="grow col" style={{ gap: 4 }}>
-              <div style={{ fontWeight: 800, fontSize: 20, color: p.decoration.color || undefined }}>
-                {p.decoration.frame === 'star' || p.decoration.frame === 'heart' ? <Icon name={p.decoration.frame} size={18} style={{ fill: 'currentColor', marginRight: 6, verticalAlign: '-3px' }} /> : null}
-                {p.displayName}
-              </div>
+              <div style={{ fontWeight: 800, fontSize: 20 }}>{p.displayName}</div>
               <div className="muted small">{p.handle}</div>
               <div className="row small">
                 <span className="dot" style={{ background: STATUS_COLORS[p.status] ?? STATUS_COLORS.offline }} />

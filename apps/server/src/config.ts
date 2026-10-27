@@ -16,7 +16,7 @@ export interface ServerConfig {
   /** ゲストにアバター・ワールドのアップロードを許すか */
   allowGuestUploads: boolean
   misskey: { enabled: boolean; allowedHosts: string[] | null }
-  limits: { avatarBytes: number; worldBytes: number; instanceFileBytes: number; maxInstanceCapacity: number }
+  limits: { avatarBytes: number; worldBytes: number; uploadBytes: number; instanceFileBytes: number; maxInstanceCapacity: number }
   relay: boolean
   iceServers: IceServer[]
   /** 管理者のハンドル（@name@host）またはユーザー ID */
@@ -46,7 +46,7 @@ export const defaultConfig = (dataDir = DEFAULT_DATA_DIR): ServerConfig => ({
   allowGuest: true,
   allowGuestUploads: true,
   misskey: { enabled: true, allowedHosts: null },
-  limits: { avatarBytes: 100 * MB, worldBytes: 300 * MB, instanceFileBytes: 50 * MB, maxInstanceCapacity: 40 },
+  limits: { avatarBytes: 100 * MB, worldBytes: 300 * MB, uploadBytes: 3 * 1024 * MB, instanceFileBytes: 50 * MB, maxInstanceCapacity: 40 },
   relay: true,
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
   admins: [],

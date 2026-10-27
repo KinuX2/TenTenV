@@ -1,8 +1,9 @@
 // アバターを 1 体表示する（自分・他の人で共通）。読み込みに失敗したり重すぎたら標準アバター（Akane）にする
 import { useFrame } from '@react-three/fiber'
 import type { AvatarRef } from '@tentenv/protocol'
+import { LAYERS } from '@tentenv/sdk'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Object3D } from 'three'
+import { Object3D, type Material, type Mesh } from 'three'
 import { BUNDLED_AVATARS, bundledAvatar } from './bundled'
 import { FaceDriver } from './face'
 import { AvatarPoser, type PoseInput } from './poser'
@@ -38,8 +39,22 @@ const isDefault = (a: AvatarRef) => a.kind === 'builtin' && (bundledAvatar(a.id)
 // VRM の衣装は読み込み直さずに切り替える
 const keyOf = (a: AvatarRef | null, fb: boolean) => (fb || !a ? 'fallback' : a.kind === 'vrm' ? `vrm:${a.sha256}` : `builtin:${a.id}`)
 
+const setStandardOutline = (model: AvatarModel) => {
+  model.root.traverse((object) => {
+    const mesh = object as Mesh
+    if (!mesh.isMesh) return
+    for (const raw of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      const material = raw as Material & { isMToonMaterial?: boolean; outlineWidthFactor?: number }
+      if (material.isMToonMaterial && typeof material.outlineWidthFactor === 'number' && material.outlineWidthFactor > 0) {
+        material.outlineWidthFactor = Math.min(material.outlineWidthFactor, 0.00042)
+      }
+    }
+  })
+}
+
 export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLimits, forceFallback, visible = true, frame, onModel, afterPose }) => {
   const [model, setModel] = useState<AvatarModel | null>(null)
+  const [standard, setStandard] = useState(false)
   const key = keyOf(avatar, !!forceFallback)
   const onModelRef = useRef(onModel)
   onModelRef.current = onModel
@@ -47,8 +62,15 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
     let alive = true
     let made: AvatarModel | null = null
     const show = (m: AvatarModel, fallback: boolean, reason: string | null) => {
-      if (local) m.setupFirstPerson()
+      if (fallback || !avatar || isDefault(avatar)) setStandardOutline(m)
+      if (local) {
+        m.setupFirstPerson()
+        m.root.traverse((o) => {
+          if ('isMesh' in o && o.isMesh && (!o.layers.isEnabled(LAYERS.FIRST_PERSON_ONLY) || o.layers.isEnabled(LAYERS.THIRD_PERSON_ONLY))) o.layers.enable(LAYERS.FACE_MIRROR)
+        })
+      }
       made = m
+      setStandard(fallback || !avatar || isDefault(avatar))
       setModel(m)
       onModelRef.current?.(m, { fallback, reason })
     }
@@ -92,6 +114,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
       alive = false
       made?.dispose()
       setModel(null)
+      setStandard(false)
       onModelRef.current?.(null, { fallback: false, reason: null })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +129,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
   }, [model, outfitKey])
 
   const poser = useMemo(() => (model ? new AvatarPoser(model) : null), [model])
-  const face = useMemo(() => (model ? new FaceDriver(model) : null), [model])
+  const face = useMemo(() => (model ? new FaceDriver(model, standard) : null), [model, standard])
   const lookObj = useMemo(() => new Object3D(), [])
   useEffect(() => {
     if (model && face) (model as AvatarModel & { face?: FaceDriver }).face = face

@@ -1,18 +1,16 @@
 // 入力（キー・VR のボタン）から UI を開くための合図
 import { create } from 'zustand'
 
-export type MenuPage = 'debug' | 'main' | 'people' | 'friends' | 'avatars' | 'expressions' | 'worlds' | 'tools' | 'instance' | 'settings' | 'notifications' | 'chat' | 'user'
+export type MenuPage = 'debug' | 'main' | 'friends' | 'avatars' | 'expressions' | 'poses' | 'worlds' | 'tools' | 'instance' | 'settings' | 'notifications' | 'chat' | 'user'
 
 interface MenuStore {
   open: boolean
   page: MenuPage
   userId: string | null
-  gesturesOpen: boolean
   muted: boolean
   ptt: boolean
   setOpen: (open: boolean, page?: MenuPage) => void
   setPage: (page: MenuPage, userId?: string | null) => void
-  setGestures: (open: boolean) => void
   setMuted: (m: boolean) => void
 }
 
@@ -20,12 +18,10 @@ export const useMenu = create<MenuStore>((set) => ({
   open: false,
   page: 'main',
   userId: null,
-  gesturesOpen: false,
   muted: false,
   ptt: false,
   setOpen: (open, page) => set({ open, page: page ?? 'main' }),
   setPage: (page, userId = null) => set({ page, userId, open: true }),
-  setGestures: (gesturesOpen) => set({ gesturesOpen }),
   setMuted: (muted) => set({ muted }),
 }))
 
@@ -43,10 +39,6 @@ export const menuBus = {
   openChat: () => {
     useMenu.getState().setPage('chat')
     if (document.pointerLockElement) document.exitPointerLock()
-  },
-  toggleGestures: () => {
-    const m = useMenu.getState()
-    m.setGestures(!m.gesturesOpen)
   },
   toggleMute: () => muteHandler(),
   setPtt: (down: boolean) => {

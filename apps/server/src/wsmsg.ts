@@ -6,7 +6,7 @@ export const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 export const MAX_SDP = 64 * 1024
 /** 中継データ（base64）の上限 */
 export const MAX_RELAY_DATA = Math.ceil((PEER_MESSAGE_LIMIT * 4) / 3) + 16
-export const STATUSES: readonly OnlineStatus[] = ['online', 'joinme', 'askme', 'busy', 'offline']
+export const STATUSES: readonly OnlineStatus[] = ['online', 'askme', 'offline']
 
 export type Parsed = { ok: true; msg: ClientSignal } | { ok: false; error: string }
 

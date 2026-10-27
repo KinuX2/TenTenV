@@ -2,6 +2,8 @@
 
 TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウザで動かすための、オープンソースで分散型の WebXR フレームワークです。親サーバー・クライアント・ワールド SDK・Windows 版をひとそろいで含み、そのまま自分たちの VRSNS として立ち上げられます。ブラウザだけで動き、VR ヘッドセット・PC・スマートフォンから同じワールドに集まれます。three.js / React Three Fiber / WebXR を使い、クライアント・サーバー・SDK はすべて TypeScript で書かれています。
 
+[Windows 版の最新版をダウンロード](https://github.com/KinuX2/TenTenV/releases/latest)
+
 誰でも自分の「親サーバー」を立てられ、利用者は接続する親サーバーを選びます。参加者どうしは P2P（WebRTC）で直接つながるので、親サーバーが止まっても、すでに同じ部屋にいる人とはそのまま遊び続けられます。
 
 ## デモプレイ動画
@@ -10,7 +12,7 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 https://github.com/user-attachments/assets/9b1257e3-23a7-4210-9783-99f6265c59aa
 
-[MP4 ファイルをダウンロード](https://github.com/KinuX2/TenTenV/releases/download/v0.1.8/demo-play.mp4)
+[MP4 ファイルをダウンロード](https://github.com/KinuX2/TenTenV/releases/download/v0.1.10/demo-play.mp4)
 
 ## スクリーンショット
 
@@ -21,11 +23,14 @@ https://github.com/user-attachments/assets/9b1257e3-23a7-4210-9783-99f6265c59aa
 | ![ワールド一覧](docs/images/worlds.png) | ![ワールド内のメインメニュー](docs/images/menu-main.png) |
 | アバター一覧 | ワールドメニュー |
 | ![アバター一覧](docs/images/menu-avatars.png) | ![ワールドメニュー](docs/images/menu-worlds.png) |
+| 制作とアップロード容量 | アバターとアップロード容量 |
+| ![制作画面の3GB使用量バー](docs/images/creator-storage.png) | ![アバター画面の3GB使用量バー](docs/images/avatar-storage.png) |
 
 ## 特長
 
 - **いろいろな端末で**: WebXR 対応の VR ヘッドセット、PC（キーボード・マウス、ゲームパッド）、スマホ（タッチ操作）。VR ではコントローラーとハンドトラッキングに対応します。
 - **VRM アバター**: 標準アバターは CC0 の「Akane」（作者: 赤山みんと 様）。VRM 0.x / 1.0 をアップロードして使えます。頭と両手の 3 点から全身を動かす IK（逆運動学: 手や頭の位置から腕や体の曲げ方を計算する方法）、揺れもの（SpringBone）、表情・ジェスチャー、声に合わせた口の動き、寝るポーズ。VRM に書かれた利用条件を表示します。
+- **アップロード容量**: アバターとワールドで共通の 3GB 枠を使います。制作・アバター画面で使用量を確認でき、上限は親サーバー側でも確認します。
 - **トラッキング**: Windows 版（OpenXR）で腰・両足のトラッキングと、コントローラーを持ったままの指の動きに対応します。表情は OSC で受け取り、VMC と `/avatar/parameters`、ARKit 系のパラメーター名に対応します。
 - **画面と VR で同じメニュー**: ワールドの中のメニューは [uikit](https://github.com/pmndrs/uikit) の 3D の UI で、画面でも VR でも同じ部品をそのまま描きます（画面ではカメラの前いっぱい、VR では目の前の空間に置くだけが違う）。
 - **P2P のフルメッシュ**: 1 つのインスタンス（部屋）の全員が WebRTC で直接つながります。P2P がつながらない相手には、親サーバーの WebSocket がデータを中継し、声も Opus に圧縮して中継します（ブラウザの WebCodecs を使用）。
@@ -88,7 +93,7 @@ TenTenV/
 ## テスト
 
 ```sh
-npm test            # すべてのパッケージのテスト（現在は親サーバーの 28 件）
+npm test            # すべてのパッケージのテスト
 npm run typecheck   # 型の検査
 ```
 

@@ -113,6 +113,7 @@ export const LocalAvatar: React.FC<{ engine: WorldEngine; onEye: (eye: number, m
       frame={frame}
       onModel={(m) => {
         modelRef.current = m
+        engine.localAvatarModel = m
         onEye(m ? m.eyeHeight * scale : 1.6 * scale, m)
       }}
       afterPose={(m) => {
@@ -226,7 +227,7 @@ const lerpFrame = (a: PoseFrame, b: PoseFrame, k: number): PoseFrame => ({
   fingers: a.fingers && b.fingers ? a.fingers.map((x, i) => x + (b.fingers![i] - x) * Math.min(1, k)) : b.fingers,
 })
 
-const STATUS_COLOR: Record<string, string> = { online: '#4ade80', joinme: '#60a5fa', askme: '#fbbf24', busy: '#f87171', offline: '#9ca3af' }
+const STATUS_COLOR: Record<string, string> = { online: '#91c93f', askme: '#fbbf24', offline: '#9ca3af' }
 
 const RemotePlayer: React.FC<{ engine: WorldEngine; member: Member; showAvatar: boolean }> = ({ engine, member, showAvatar }) => {
   const peerId = member.desc.peerId

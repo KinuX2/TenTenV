@@ -10,6 +10,7 @@ import { settings } from '../state/settings'
 import { Emitter } from '../net/transport'
 import { uiBridge } from '../ui/bridge'
 import type { BodyPose } from '../features/bodyTracking'
+import type { AvatarModel } from '../avatar/types'
 
 export interface LocalPlayerState {
   position: Vector3
@@ -109,6 +110,7 @@ export class WorldEngine {
   held: Record<'left' | 'right' | 'desktop', string | null> = { left: null, right: null, desktop: null }
   navigate: (target: { worldId?: string; instanceId?: string }) => void = () => {}
   avatarRef: AvatarRef
+  localAvatarModel: AvatarModel | null = null
 
   constructor(ctx: WorldContext, avatar: AvatarRef) {
     this.ctx = ctx

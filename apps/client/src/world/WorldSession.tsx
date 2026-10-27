@@ -230,7 +230,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
       alive = false
       offs.forEach((f) => f())
       setActiveEngine(null)
-      useTools.getState().set({ mirror: false, faceMirror: false })
+      useTools.getState().set({ mirror: false })
       useMenu.getState().setOpen(false)
       usePortalPlacement.getState().cancel()
       engine?.dispose()

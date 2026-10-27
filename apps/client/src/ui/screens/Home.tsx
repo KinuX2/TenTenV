@@ -3,6 +3,7 @@ import { lazy, Suspense, useState } from 'react'
 import { L, useLang } from '../../i18n'
 import { useApp } from '../../state/app'
 import { useNet } from '../../state/net'
+import { useSettings } from '../../state/settings'
 import { SettingsPanel } from '../SettingsPanel'
 import { UserIcon } from '../common'
 import { CreatorTab } from './CreatorTab'
@@ -23,9 +24,12 @@ export const Home: React.FC = () => {
   const notes = useApp((s) => s.notifications)
   const online = useNet((s) => s.online)
   const friends = useNet((s) => s.friends)
+  const autoEnterVR = useSettings((s) => s.s.autoEnterVR)
+  const setSettings = useSettings((s) => s.set)
   const [tab, setTab] = useState<Tab>('worlds')
   const [user, setUser] = useState<string | null>(null)
   const [world, setWorld] = useState<string | null>(null)
+  const [creatorVersion, setCreatorVersion] = useState(0)
   // スマホ: 左上のボタンで開くメニュー
   const [drawer, setDrawer] = useState(false)
   const go = (t: Tab) => {
@@ -40,7 +44,7 @@ export const Home: React.FC = () => {
     ['avatars', 'avatar', 'アバター', 'Avatars'],
     ['notifications', 'bell', '通知', 'Alerts', unread],
     ['profile', 'profile', 'プロフィール', 'Profile'],
-    ['create', 'tool', '制作', 'Create'],
+    ['create', 'pen', '制作', 'Create'],
     ['settings', 'settings', '設定', 'Settings'],
   ]
   return (
@@ -67,6 +71,11 @@ export const Home: React.FC = () => {
           </button>
         ))}
         <div className="spacer" style={{ flex: 1 }} />
+        <label className="home-vr-toggle server-box">
+          <span>{L('VRモード', 'VR mode')}</span>
+          <input type="checkbox" role="switch" checked={autoEnterVR} onChange={(e) => setSettings({ autoEnterVR: e.target.checked })} />
+          <span className="home-vr-track" aria-hidden="true" />
+        </label>
         {(me.homeWorldId ?? info?.defaultHomeWorldId) && (
           <button className="btn primary server-box" onClick={() => void goToWorld((me.homeWorldId ?? info?.defaultHomeWorldId)!)}>
             <Icon name="home" size={18} /> {L('ホームへ', 'Go home')}
@@ -77,13 +86,13 @@ export const Home: React.FC = () => {
           <div className="grow" style={{ minWidth: 0 }}>
             <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{me.displayName}</div>
             <div className="muted small" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <span className="dot" style={{ background: online ? '#4ade80' : '#f87171' }} /> {info?.name}
+              <span className="dot" style={{ background: online ? 'var(--ok)' : 'var(--bad)' }} /> {info?.name}
             </div>
           </div>
         </div>
       </aside>
       <main className="main">
-        {tab === 'worlds' && <WorldsTab openUser={setUser} />}
+        {tab === 'worlds' && <WorldsTab />}
         {tab === 'friends' && <FriendsTab openUser={setUser} />}
         {tab === 'avatars' && (
           <Suspense fallback={<div className="muted">{L('読み込み中…', 'Loading…')}</div>}>
@@ -92,7 +101,7 @@ export const Home: React.FC = () => {
         )}
         {tab === 'notifications' && <NotificationsTab openUser={setUser} />}
         {tab === 'profile' && <ProfileTab />}
-        {tab === 'create' && <CreatorTab openWorld={setWorld} />}
+        {tab === 'create' && <CreatorTab key={creatorVersion} openWorld={setWorld} />}
         {tab === 'settings' && (
           <div className="col" style={{ maxWidth: 760 }}>
             <h1>{L('設定', 'Settings')}</h1>
@@ -101,7 +110,7 @@ export const Home: React.FC = () => {
         )}
       </main>
       {user && <UserModal userId={user} onClose={() => setUser(null)} />}
-      {world && <WorldDetail worldId={world} onClose={() => setWorld(null)} openUser={setUser} />}
+      {world && <WorldDetail worldId={world} onClose={() => (setWorld(null), setCreatorVersion((v) => v + 1))} />}
     </div>
   )
 }

@@ -6,7 +6,7 @@ import { L } from '../../i18n'
 import { useApp } from '../../state/app'
 import type { WorldEngine } from '../../world/engine'
 import { useDialogs } from '../bridge'
-import { faceTexture, handTexture, iconTexture, reactionTexture } from '../iconTextures'
+import { faceTexture, handTexture, iconTexture } from '../iconTextures'
 import { useMenu, type MenuPage } from '../menuBus'
 import { kanaConvert } from '../vr/kana'
 import { safeText } from './menuFont'
@@ -16,19 +16,19 @@ import { ChatPage } from './ChatPage'
 import { playUiClick } from '../clickSound'
 
 const C = {
-  panel: '#101925',
-  side: '#0b121d',
-  card: '#1a2838',
-  btn: '#213044',
-  hover: '#304762',
-  active: '#196b83',
+  panel: '#0d100c',
+  side: '#050705',
+  card: '#151a13',
+  btn: '#1d231a',
+  hover: '#2a3524',
+  active: '#405c1b',
   danger: '#723b45',
-  primary: '#176b83',
-  text: '#f3f7fa',
-  sub: '#adbecb',
-  line: '#34485b',
-  accent: '#70ddda',
-  inset: '#0d1824',
+  primary: '#5b8010',
+  text: '#f1f4ee',
+  sub: '#a8b3a2',
+  line: '#30392c',
+  accent: '#a2d23f',
+  inset: '#0a0d09',
 }
 
 // 横長の板。画面内での表示倍率は WorldMenu で決める。
@@ -42,7 +42,7 @@ const soundClick = (onClick: () => void) => () => { playUiClick(); onClick() }
 
 // ---------------------------------------------------------------- 小さな部品
 
-/** 図柄（線画のアイコン・表情・手・リアクションはテクスチャにして出す。uikit の Svg は線を描かないため） */
+/** 図柄（線画のアイコン・表情・手はテクスチャにして出す。uikit の Svg は線を描かないため） */
 const IconView: React.FC<{ icon: MenuIcon; size: number }> = ({ icon, size }) => {
   if ('image' in icon && icon.image) return <Image src={icon.image} width={size} height={size} objectFit="cover" borderRadius={6} keepAspectRatio={false} flexShrink={0} />
   const tex =
@@ -52,9 +52,7 @@ const IconView: React.FC<{ icon: MenuIcon; size: number }> = ({ icon, size }) =>
         ? faceTexture(icon.face, C.text)
         : 'hand' in icon
           ? handTexture(icon.hand, C.text)
-          : 'reaction' in icon
-            ? reactionTexture(icon.reaction)
-            : iconTexture(icon.fallback ?? 'user', C.text)
+          : iconTexture(icon.fallback ?? 'user', C.text)
   return <Image src={tex} width={size} height={size} keepAspectRatio={false} flexShrink={0} />
 }
 
@@ -93,7 +91,7 @@ const Btn: React.FC<{ b: MenuButton; kind: 'big' | 'small' | 'tab' }> = ({ b, ki
         cursor="pointer"
         onClick={soundClick(b.onClick)}
       >
-        {b.icon && <Container width={48} height={48} borderRadius={13} backgroundColor={b.on ? '#28849a' : C.inset} alignItems="center" justifyContent="center"><IconView icon={b.icon} size={31} /></Container>}
+        {b.icon && <Container width={48} height={48} borderRadius={13} backgroundColor={b.on ? C.active : C.inset} alignItems="center" justifyContent="center"><IconView icon={b.icon} size={31} /></Container>}
         <T size={14} center bold>
           {b.label}
         </T>
@@ -163,10 +161,11 @@ const Stepper: React.FC<{
   min: number
   max: number
   step: number
+  singleStep?: boolean
   format?: (v: number) => string
   onChange: (v: number) => void
-}> = ({ label, value, min, max, step, format, onChange }) => {
-  const s = step * Math.max(1, Math.round((max - min) / step / 20))
+}> = ({ label, value, min, max, step, singleStep, format, onChange }) => {
+  const s = singleStep ? step : step * Math.max(1, Math.round((max - min) / step / 20))
   const clamp = (v: number) => Math.min(max, Math.max(min, Math.round((v - min) / step) * step + min))
   const ratio = (value - min) / (max - min || 1)
   return (
@@ -297,7 +296,7 @@ const Item: React.FC<{
         </Container>
       )
     case 'range':
-      return <Stepper label={it.label} value={it.value} min={it.min} max={it.max} step={it.step} format={it.format} onChange={it.onChange} />
+      return <Stepper label={it.label} value={it.value} min={it.min} max={it.max} step={it.step} singleStep={it.singleStep} format={it.format} onChange={it.onChange} />
     case 'choice':
       return (
         <Container flexDirection="column" gap={6}>
@@ -551,7 +550,7 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ engine, vr, close, exitVR,
   const dialog = showDialogs && dialogs.length > 0
   const keyboardVisible = !!kb || (dialog && dialogs[0]?.kind === 'prompt')
   const accountBadge = <Container flexDirection="row" alignItems="center" gap={8} paddingX={12} paddingY={8} borderRadius={12} backgroundColor={C.card}>
-    <Container width={8} height={8} borderRadius={4} backgroundColor="#70d7a1" />
+    <Container width={8} height={8} borderRadius={4} backgroundColor={C.accent} />
     <T size={12}>{me?.displayName ?? L('ゲスト', 'Guest')}</T>
   </Container>
   const body = kb ? (
@@ -564,7 +563,7 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ engine, vr, close, exitVR,
     <Page key={current} engine={engine} vr={vr} close={close} exitVR={exitVR} render={(items) => <Items items={items} openKeyboard={setKb} />} />
   )
   return (
-    <Container width={PANEL_W} height={keyboardVisible ? 460 : PANEL_H} depthTest={vr} renderOrder={1001} flexDirection="row" borderRadius={20} backgroundColor={C.panel} borderWidth={1} borderColor={C.line} overflow="hidden">
+    <Container width={PANEL_W} height={keyboardVisible ? 460 : PANEL_H} depthTest={false} depthWrite={false} renderOrder={1001} pointerEventsOrder={1000} flexDirection="row" borderRadius={20} backgroundColor={C.panel} borderWidth={1} borderColor={C.line} overflow="hidden">
       <Container flexGrow={1} flexShrink={1} flexDirection="column">
         <Container height={66} flexShrink={0} flexDirection="row" alignItems="center" paddingX={BODY_PAD} backgroundColor={C.panel} borderTopLeftRadius={20} borderTopRightRadius={20} borderBottomWidth={1} borderColor={C.line}>
           {accountBadge}
@@ -581,7 +580,7 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ engine, vr, close, exitVR,
           {body}
         </Container>
         {!kb && !dialog && <Container height={54} flexShrink={0} flexDirection="row" alignItems="center" justifyContent="center" gap={5} paddingX={8} backgroundColor={C.side} borderBottomLeftRadius={notices.length ? 0 : 20} borderBottomRightRadius={notices.length ? 0 : 20} borderTopWidth={1} borderColor={C.line}>
-          {tabs.filter((t) => ['main', 'tools', 'friends', 'chat', 'instance', 'notifications', 'settings'].includes(t.id)).map((t) => <FooterTab key={t.id} tab={t} active={current === t.id || (current === 'debug' && t.id === 'settings')} />)}
+          {tabs.filter((t) => ['main', 'tools', 'friends', 'chat', 'instance', 'notifications', 'settings'].includes(t.id)).map((t) => <FooterTab key={t.id} tab={t} active={current === t.id || ((current === 'expressions' || current === 'poses') && t.id === 'main') || (current === 'debug' && t.id === 'settings')} />)}
         </Container>}
         {notices.length > 0 && (
           <Container flexShrink={0} padding={10} backgroundColor={C.inset} borderBottomLeftRadius={20} borderBottomRightRadius={20} borderTopWidth={1} borderColor={C.line}>

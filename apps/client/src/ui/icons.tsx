@@ -155,31 +155,3 @@ export const HandIcon: React.FC<{ gesture: string; size?: number }> = ({ gesture
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden dangerouslySetInnerHTML={{ __html: handSvg(HANDS[gesture] ?? HANDS.neutral) }} />
 )
 
-// ---------- 頭上のリアクション（色つきの自作の図柄） ----------
-
-export const REACTION_ART: Record<string, { label: string; labelEn: string; svg: string }> = {
-  heart: { label: 'ハート', labelEn: 'Heart', svg: '<path d="M32 54S10 41 10 25a11 11 0 0 1 22-4 11 11 0 0 1 22 4c0 16-22 29-22 29z" fill="#ff5a8a" stroke="#fff" stroke-width="3"/>' },
-  star: { label: '星', labelEn: 'Star', svg: '<path d="M32 7l7 15 16 2-12 11 3 16-14-8-14 8 3-16L9 24l16-2z" fill="#ffd040" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>' },
-  sparkle: { label: 'キラキラ', labelEn: 'Sparkle', svg: '<path d="M26 8l4 13 13 4-13 4-4 13-4-13-13-4 13-4zM46 34l2.5 7 7 2.5-7 2.5L46 53l-2.5-7-7-2.5 7-2.5z" fill="#8ecbff" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>' },
-  smile: { label: 'にっこり', labelEn: 'Smile', svg: '<circle cx="32" cy="32" r="23" fill="#ffcf4a" stroke="#fff" stroke-width="3"/><path d="M22 27c1.5-3 5-3 6.5 0M35.5 27c1.5-3 5-3 6.5 0M21 37c3 6 7 9 11 9s8-3 11-9" fill="none" stroke="#5a3a10" stroke-width="3.2" stroke-linecap="round"/>' },
-  laugh: { label: '大笑い', labelEn: 'Laugh', svg: '<circle cx="32" cy="32" r="23" fill="#ffcf4a" stroke="#fff" stroke-width="3"/><path d="M21 26l6 3-6 3M43 26l-6 3 6 3" fill="none" stroke="#5a3a10" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 37h26c-2 8-7 12-13 12s-11-4-13-12z" fill="#7a2a2a" stroke="#5a3a10" stroke-width="2.5" stroke-linejoin="round"/>' },
-  wow: { label: 'びっくり', labelEn: 'Wow', svg: '<circle cx="32" cy="32" r="23" fill="#ffcf4a" stroke="#fff" stroke-width="3"/><circle cx="24" cy="27" r="3.2" fill="#5a3a10"/><circle cx="40" cy="27" r="3.2" fill="#5a3a10"/><ellipse cx="32" cy="42" rx="5" ry="6.5" fill="#7a2a2a"/>' },
-  sad: { label: 'しょんぼり', labelEn: 'Sad', svg: '<circle cx="32" cy="32" r="23" fill="#9cc4ff" stroke="#fff" stroke-width="3"/><circle cx="24" cy="28" r="2.8" fill="#24345a"/><circle cx="40" cy="28" r="2.8" fill="#24345a"/><path d="M23 45c3-4 6-6 9-6s6 2 9 6" fill="none" stroke="#24345a" stroke-width="3.2" stroke-linecap="round"/><path d="M19 33c0 4 4 4 4 0l-2-5z" fill="#5ab0ff"/>' },
-  angry: { label: 'ぷんぷん', labelEn: 'Angry', svg: '<circle cx="32" cy="32" r="23" fill="#ff7a5a" stroke="#fff" stroke-width="3"/><path d="M19 23l9 4M45 23l-9 4" stroke="#4a1a10" stroke-width="3.2" stroke-linecap="round"/><circle cx="25" cy="30.5" r="2.6" fill="#4a1a10"/><circle cx="39" cy="30.5" r="2.6" fill="#4a1a10"/><path d="M23 45c3-3 6-4 9-4s6 1 9 4" fill="none" stroke="#4a1a10" stroke-width="3.2" stroke-linecap="round"/>' },
-  sleepy: { label: 'ねむい', labelEn: 'Sleepy', svg: '<path d="M14 18h14L14 34h14M34 34h10L34 46h10M46 10h8l-8 9h8" fill="none" stroke="#b8a6ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>' },
-  music: { label: '音符', labelEn: 'Music', svg: '<path d="M24 46V16l24-5v28" fill="none" stroke="#7be495" stroke-width="4" stroke-linejoin="round"/><ellipse cx="19" cy="46" rx="6" ry="5" fill="#7be495"/><ellipse cx="43" cy="40" rx="6" ry="5" fill="#7be495"/>' },
-  flower: { label: '花', labelEn: 'Flower', svg: '<g fill="#ff9ccf" stroke="#fff" stroke-width="2.5"><circle cx="32" cy="17" r="9"/><circle cx="46" cy="28" r="9"/><circle cx="41" cy="45" r="9"/><circle cx="23" cy="45" r="9"/><circle cx="18" cy="28" r="9"/></g><circle cx="32" cy="32" r="7" fill="#ffd040" stroke="#fff" stroke-width="2.5"/>' },
-  flame: { label: 'ほのお', labelEn: 'Flame', svg: '<path d="M32 6c3 10 16 16 16 30a16 16 0 0 1-32 0c0-8 5-12 7-17 2 5 4 7 6 8 1-9 3-15 3-21z" fill="#ff7a3a" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M32 33c2 4 7 7 7 12a7 7 0 0 1-14 0c0-4 4-7 7-12z" fill="#ffd040"/>' },
-  party: { label: 'おめでとう', labelEn: 'Party', svg: '<path d="M10 54l10-30 20 20z" fill="#b18cff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M34 22c4-6 10-6 12-12M40 30c6-2 10 2 16-2M30 16c0-4 2-7 0-10" fill="none" stroke="#ffd040" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="14" r="3" fill="#ff5a8a"/><circle cx="54" cy="40" r="3" fill="#5ac8fa"/><circle cx="24" cy="10" r="3" fill="#7be495"/>' },
-  like: { label: 'いいね', labelEn: 'Like', svg: '<circle cx="32" cy="32" r="23" fill="#5b8cff" stroke="#fff" stroke-width="3"/><path d="M20 33l8 8 16-17" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>' },
-  question: { label: 'はてな', labelEn: 'Question', svg: '<path d="M22 22a10 10 0 1 1 15 8.5c-3 2-5 3.5-5 7.5" fill="none" stroke="#5ac8fa" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="50" r="4" fill="#5ac8fa"/>' },
-  exclaim: { label: 'びっくりマーク', labelEn: 'Exclaim', svg: '<path d="M32 10v28" stroke="#ff5a5a" stroke-width="8" stroke-linecap="round"/><circle cx="32" cy="51" r="5" fill="#ff5a5a"/>' },
-}
-export const REACTION_IDS = Object.keys(REACTION_ART)
-
-export const reactionSvg = (id: string, size = 128) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">${REACTION_ART[id]?.svg ?? ''}</svg>`
-
-export const ReactionIcon: React.FC<{ id: string; size?: number }> = ({ id, size = 28 }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden dangerouslySetInnerHTML={{ __html: REACTION_ART[id]?.svg ?? '' }} />
-)
-

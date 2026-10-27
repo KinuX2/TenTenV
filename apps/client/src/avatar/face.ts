@@ -46,7 +46,7 @@ export class FaceDriver {
   private current: Record<string, number> = {}
   private reaction: { name: string; until: number } | null = null
 
-  constructor(private model: AvatarModel) {}
+  constructor(private model: AvatarModel, private standardAvatar = false) {}
 
   /** 触れられたときなどの一瞬の表情 */
   react(name: string, ms = 1200) {
@@ -67,9 +67,18 @@ export class FaceDriver {
     }
     this.blink = Math.max(0, this.blink - dt * 7)
     if (!eyesBusy) target.blink = Math.max(target.blink ?? 0, Math.sin(Math.min(1, this.blink) * Math.PI))
-    // 口: 声の大きさと母音。口を使う表情（驚きなど）のときは弱める
-    const mouthBusy = (target.surprised ?? 0) > 0.5 ? 0.4 : 1
-    for (const [k, v] of Object.entries(voice.visemes)) target[k] = Math.max(target[k] ?? 0, v * mouthBusy)
+    // 口: Akane は感情のモーフも口元を動かすため、発話中は母音を優先する
+    const mouth = Math.max(...Object.values(voice.visemes))
+    if (this.standardAvatar && mouth > 0.01) {
+      const speaking = Math.min(1, mouth * 2)
+      for (const name of EMOTIONS) if (name in target) target[name] *= 1 - speaking * 0.85
+    }
+    const mouthBusy = !this.standardAvatar && (target.surprised ?? 0) > 0.5 ? 0.4 : 1
+    for (const [k, v] of Object.entries(voice.visemes)) {
+      const weight = Math.max(target[k] ?? 0, Math.min(1, v * (this.standardAvatar ? 0.375 : mouthBusy)))
+      target[k] = this.standardAvatar && mouth > 0.01 ? Math.min(0.375, weight) : weight
+    }
+    if (this.standardAvatar && mouth > 0.01) target.oh = Math.max(target.oh ?? 0, Math.min(0.25, mouth * 0.5))
     // なめらかに変える
     const k = 1 - Math.exp(-dt * 14)
     const names = new Set([...Object.keys(this.current), ...Object.keys(target)])

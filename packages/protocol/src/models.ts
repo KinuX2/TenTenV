@@ -16,6 +16,7 @@ export interface ServerInfo {
   limits: {
     avatarBytes: number
     worldBytes: number
+    uploadBytes: number
     instanceFileBytes: number
     maxInstanceCapacity: number
   }
@@ -26,13 +27,21 @@ export interface ServerInfo {
   defaultHomeWorldId?: string | null
 }
 
+/** 自分のアバターと公開中のワールドの合計アップロード容量 */
+export interface UploadQuota {
+  usedBytes: number
+  limitBytes: number
+  avatarBytes: number
+  worldBytes: number
+}
+
 export interface IceServer {
   urls: string | string[]
   username?: string
   credential?: string
 }
 
-export type OnlineStatus = 'online' | 'joinme' | 'askme' | 'busy' | 'offline'
+export type OnlineStatus = 'online' | 'askme' | 'offline'
 /** 現在地を誰に見せるか */
 export type LocationVisibility = 'everyone' | 'friends' | 'nobody'
 

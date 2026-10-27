@@ -6,7 +6,7 @@ import { XROrigin } from '@react-three/xr'
 import { PoseFlag, SleepPose, type TrackedPoint } from '@tentenv/protocol'
 import { useEffect, useMemo, useRef } from 'react'
 import { Euler, MathUtils, Quaternion, Vector3, type Group, type PerspectiveCamera, type WebGLRenderer } from 'three'
-import { useSettings, settings } from '../state/settings'
+import { useSettings, settings, WALK_SPEED } from '../state/settings'
 import type { WorldEngine } from '../world/engine'
 import { handCurls, xrSpaceToWorld, xrViewerLocal } from '../world/xr'
 import { readBodyTrackers, skeletalCurls } from '../features/bodyTracking'
@@ -15,6 +15,7 @@ import { xrInput, type HandInput } from './xrInput'
 import { menuBus } from '../ui/menuBus'
 import { pendingClick, pendingGrab, pendingTap, pendingUse, pendingWheel } from '../world/interaction'
 import { playspaceOriginY, updatePlayspaceLift } from './playspaceLift'
+import { vrStickSpeed } from './vrStickSpeed'
 
 const RADIUS = 0.25
 const STAND_HALF = 0.55
@@ -154,7 +155,6 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       if (turnHand.stickDown) f.crouchToggle = true
       if (L.secondaryDown) menuBus.toggle()
       if (moveHand.primaryDown) f.muteToggle = true
-      if (R.secondaryDown) menuBus.toggleGestures()
       // 手の形（[21]）
       p.handTracking = L.handTracking || R.handTracking
     }
@@ -208,7 +208,10 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       }
     }
     const crouchMul = p.prone ? 0.35 : p.crouch ? 0.55 : 1
-    const speed = s.moveSpeed * (f.run ? s.runMultiplier : 1) * crouchMul * (xr ? scale : 1)
+    const vrMagnitude = Math.min(1, Math.hypot(vrMove.x, vrMove.y))
+    const vrOnly = xr && vrMagnitude > 0 && f.moveX === 0 && f.moveY === 0 && !f.run
+    const speedFactor = vrOnly ? vrStickSpeed(vrMagnitude, s.runMultiplier) / vrMagnitude : f.run ? s.runMultiplier : 1
+    const speed = WALK_SPEED * speedFactor * crouchMul * (xr ? scale : 1)
     const fwd = new Vector3(-Math.sin(dirYaw), 0, -Math.cos(dirYaw))
     const right = new Vector3(-fwd.z, 0, fwd.x)
     const wish = fwd.multiplyScalar(my * speed).add(right.multiplyScalar(mx * speed))
@@ -298,8 +301,8 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
     }
     p.speed = Math.hypot(p.velocity.x, p.velocity.z) / (xr ? scale : 1)
     const localV = p.velocity.clone().applyAxisAngle(UP, -S.bodyYaw)
-    p.moveX = MathUtils.clamp(localV.x / Math.max(0.1, s.moveSpeed), -1, 1)
-    p.moveZ = MathUtils.clamp(-localV.z / Math.max(0.1, s.moveSpeed), -1, 1)
+    p.moveX = MathUtils.clamp(localV.x / WALK_SPEED, -1, 1)
+    p.moveZ = MathUtils.clamp(-localV.z / WALK_SPEED, -1, 1)
 
     // 落ちたら出現位置へ
     if (p.position.y < -80) engine.runtime.respawn()

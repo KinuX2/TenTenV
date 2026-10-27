@@ -7,13 +7,13 @@ import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNo
 import { ACESFilmicToneMapping, AdditiveBlending, AgXToneMapping, Color, HalfFloatType, NeutralToneMapping, NoToneMapping, PCFShadowMap, Quaternion, UnsignedByteType, Vector3, type Group, type WebGLRenderer } from 'three'
 import type { AvatarExtensions } from '@tentenv/protocol'
 import { LocalPlayer } from '../player/LocalPlayer'
-import { qualityProfile, useSettings } from '../state/settings'
+import { qualityProfile, settings, useSettings } from '../state/settings'
 import type { WorldEngine } from './engine'
 import { InteractionSystem } from './interaction'
 import type { LoadedWorld } from './loader'
 import { PickupSystem } from './pickups'
 import { LocalAvatar, RemotePlayers } from './players'
-import { xrStore } from './xr'
+import { enterVR, xrStore } from './xr'
 import { PlatformFeatures } from '../features/PlatformFeatures'
 import { MenuController, WorldMenu } from '../ui/menu/WorldMenu'
 import { useMenu } from '../ui/menuBus'
@@ -23,6 +23,16 @@ import { PlacedPortals } from './PlacedPortals'
 
 // 操作用コントローラーの見た目はアバターに任せ、メニュー表示中だけレイを有効にする
 xrStore.setController(MenuController)
+
+const AutoEnterVR: React.FC = () => {
+  const attempted = useRef(false)
+  useEffect(() => {
+    if (attempted.current) return
+    attempted.current = true
+    if (settings().autoEnterVR && navigator.xr && !xrStore.getState().session) void enterVR()
+  }, [])
+  return null
+}
 
 const TONE = { aces: ACESFilmicToneMapping, agx: AgXToneMapping, neutral: NeutralToneMapping, none: NoToneMapping }
 
@@ -258,6 +268,7 @@ export const WorldScene: React.FC<WorldSceneProps> = ({ engine, world, extension
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
       <XR store={xrStore}>
+        <AutoEnterVR />
         {engine && world ? (
           <Suspense fallback={<WorldLoadingView onCancel={onLoadingCancel} />}>
             <WorldContents key={engine.ctx.instance.id} engine={engine} world={world} extensions={extensions} onWorldError={onWorldError} />

@@ -8,7 +8,6 @@ import type { WorldEngine } from '../world/engine'
 import { useMenu } from './menuBus'
 import { outfitTokens, useAvatarExt, withOutfits } from '../state/avatarExt'
 import { useTools } from '../features/tools'
-import { sendEmoji } from '../features/Reactions'
 
 import { activeEngine } from '../state/activeEngine'
 export { activeEngine, setActiveEngine } from '../state/activeEngine'
@@ -75,7 +74,6 @@ export const actions = {
     p.autoSleep = false
     p.crouch = p.prone = false
   },
-  emoji: (e: string) => activeEngine() && sendEmoji(activeEngine()!, e),
   tool: (p: Parameters<ReturnType<typeof useTools.getState>['set']>[0]) => useTools.getState().set(p),
   chat: (text: string) => activeEngine()?.session.sendChat(text),
   /** アバターの変更（インスタンスの中なら全員へ伝える） */

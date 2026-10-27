@@ -10,6 +10,7 @@ import { MANIFEST_FILE, unpackWorld } from '../sdk'
 import { newId } from '../social'
 import { WORLD_SELECT, worldInfo, worldSummary, type UserRow, type WorldRow } from '../views'
 import { likePattern, queryInt, requireUploader } from './util'
+import { ensureUploadQuota } from './uploadQuota'
 
 const VISIBILITY: readonly WorldVisibility[] = ['public', 'unlisted', 'private']
 const SORTS = ['popular', 'new', 'recommended', 'favorites'] as const
@@ -32,7 +33,7 @@ export const cleanMeta = (m: WorldManifest) => {
 }
 
 /** パッケージを検査して保存する。新しい版の番号を返す */
-export const storePackage = (app: App, id: string, version: number, buf: Uint8Array) => {
+export const storePackage = (app: App, id: string, version: number, buf: Uint8Array, checkSize?: (totalBytes: number) => void) => {
   let unpacked
   try {
     unpacked = unpackWorld(buf, { maxBytes: app.config.limits.worldBytes })
@@ -40,6 +41,7 @@ export const storePackage = (app: App, id: string, version: number, buf: Uint8Ar
     throw badRequest(e instanceof Error ? e.message : 'パッケージを読めません')
   }
   const { manifest, files, totalBytes } = unpacked
+  checkSize?.(totalBytes)
   if (manifest.thumbnail !== null && (typeof manifest.thumbnail !== 'string' || !files.has(manifest.thumbnail) || !/\.(png|jpe?g|webp|gif|avif)$/i.test(manifest.thumbnail))) {
     throw badRequest('サムネイルの指定が正しくありません')
   }
@@ -175,7 +177,7 @@ export const worldRoutes = (app: App) => {
     if (n >= MAX_WORLDS_PER_USER) throw conflict(`ワールドは 1 人 ${MAX_WORLDS_PER_USER} 個までです`)
     const buf = await readBody(req.raw, app.config.limits.worldBytes)
     const id = newId()
-    const { manifest, totalBytes } = storePackage(app, id, 1, buf)
+    const { manifest, totalBytes } = storePackage(app, id, 1, buf, (bytes) => ensureUploadQuota(app, me.id, bytes))
     const meta = cleanMeta(manifest)
     const now = Date.now()
     try {
@@ -208,7 +210,7 @@ export const worldRoutes = (app: App) => {
     requireUploader(app, req)
     const buf = await readBody(req.raw, app.config.limits.worldBytes)
     const version = w.version + 1
-    const { manifest, totalBytes } = storePackage(app, w.id, version, buf)
+    const { manifest, totalBytes } = storePackage(app, w.id, version, buf, (bytes) => ensureUploadQuota(app, me.id, bytes, w.total_bytes))
     const meta = cleanMeta(manifest)
     const now = Date.now()
     db.tx(() => {

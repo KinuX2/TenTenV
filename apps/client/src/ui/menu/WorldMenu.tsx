@@ -36,7 +36,6 @@ export const WorldMenu: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
 
 const close = () => {
   useMenu.getState().setOpen(false)
-  useMenu.getState().setGestures(false)
 }
 
 /** 画面: 横長の板を中央に置き、画面占有率を調整する。 */
@@ -60,27 +59,32 @@ const menuRotation = new Quaternion()
 const menuUp = new Vector3(0, 1, 0)
 const menuTilt = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -0.12)
 
-/** VR: メニューをボディの前に置き、体の移動と向きに追従させる。 */
+/** VR: 開いたときのヘッドの高さに置き、その高さを保ってボディに追従させる。 */
 const VrPlacement: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   const gl = useThree((s) => s.gl)
   const open = useMenu((m) => m.open)
-  const gestures = useMenu((m) => m.gesturesOpen)
   const dialogs = useDialogs((d) => d.dialogs.length)
-  const show = open || gestures || dialogs > 0
+  const show = open || dialogs > 0
   const g = useRef<Group>(null)
-  useEffect(() => {
-    if (gestures) useMenu.getState().setPage('expressions')
-  }, [gestures])
+  const openHeight = useRef<number | null>(null)
   useEffect(() => {
     useVrMenuShown.setState({ shown: show })
     return () => useVrMenuShown.setState({ shown: false })
   }, [show])
   useFrame(() => {
     const grp = g.current
-    if (!grp || !show) return
+    if (!show) {
+      openHeight.current = null
+      return
+    }
+    if (!grp) return
     const body = engine.player
+    if (openHeight.current === null) {
+      const eyeHeight = body.head.p.y - body.position.y
+      openHeight.current = Number.isFinite(eyeHeight) && eyeHeight > 0.2 ? eyeHeight : body.height * 0.93
+    }
     menuRotation.setFromAxisAngle(menuUp, body.yaw)
-    grp.position.copy(body.position).add(menuPosition.set(0, body.height * 0.93 - 0.06, -0.7).applyQuaternion(menuRotation))
+    grp.position.copy(body.position).add(menuPosition.set(0, openHeight.current - 0.16, -0.7).applyQuaternion(menuRotation))
     grp.quaternion.copy(menuRotation).multiply(menuTilt)
     grp.scale.setScalar(gl.xr.getCamera().parent?.scale.x ?? 1)
   })
@@ -131,7 +135,7 @@ const MenuBeam: React.FC<{ pointer: Pointer; fallbackLength: number }> = ({ poin
   })
   return <mesh ref={beam} renderOrder={10000} frustumCulled={false}>
     <boxGeometry args={[1, 1, 1]} />
-    <meshBasicMaterial color="#8ec5ff" transparent opacity={0.85} depthTest={false} depthWrite={false} toneMapped={false} />
+    <meshBasicMaterial color="#a2d23f" transparent opacity={0.85} depthTest={false} depthWrite={false} toneMapped={false} />
   </mesh>
 }
 
@@ -166,15 +170,15 @@ const MenuCursor: React.FC<{ pointer: Pointer }> = ({ pointer }) => {
     }
     const down = pointer.getButtonsDown().size > 0
     grp.scale.setScalar(down ? 1.35 : 1)
-    ;(ring.current!.material as MeshBasicMaterial).color.set(down ? '#ffd040' : '#ffffff')
-    ;(dot.current!.material as MeshBasicMaterial).color.set(down ? '#ffd040' : '#3b82ff')
+    ;(ring.current!.material as MeshBasicMaterial).color.set(down ? '#d4f58a' : '#ffffff')
+    ;(dot.current!.material as MeshBasicMaterial).color.set(down ? '#d4f58a' : '#a2d23f')
   })
   return createPortal(
     <group ref={g} visible={false}>
       {/* 暗い縁（明るい所でも見えるように） */}
       <mesh renderOrder={10001}>
         <ringGeometry args={[0.0075, 0.0135, 40]} />
-        <meshBasicMaterial color="#0b0e16" transparent opacity={0.8} depthTest={false} toneMapped={false} />
+        <meshBasicMaterial color="#050705" transparent opacity={0.8} depthTest={false} toneMapped={false} />
       </mesh>
       <mesh ref={ring} renderOrder={10002}>
         <ringGeometry args={[0.0085, 0.0118, 40]} />
@@ -182,7 +186,7 @@ const MenuCursor: React.FC<{ pointer: Pointer }> = ({ pointer }) => {
       </mesh>
       <mesh ref={dot} renderOrder={10002}>
         <circleGeometry args={[0.0035, 24]} />
-        <meshBasicMaterial color="#3b82ff" transparent depthTest={false} toneMapped={false} />
+        <meshBasicMaterial color="#a2d23f" transparent depthTest={false} toneMapped={false} />
       </mesh>
     </group>,
     scene,

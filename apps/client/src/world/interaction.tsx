@@ -210,7 +210,7 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
         // 指先で押す（近くで触る操作）
         for (const it of engine.interactables.values()) {
           const sp = it.spec()
-          if (sp.enabled === false || !visibleInScene(it.obj)) continue
+          if (sp.enabled === false || sp.poke === false || !visibleInScene(it.obj)) continue
           _box.setFromObject(it.obj).expandByScalar(0.008)
           if (_box.isEmpty()) continue
           const inside = _box.containsPoint(hi.tipP)

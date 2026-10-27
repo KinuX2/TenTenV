@@ -6,13 +6,11 @@ import { DoubleSide, Group, Mesh, Quaternion, RingGeometry, ShaderMaterial, Vect
 import { xrInput } from '../player/xrInput'
 import { qualityProfile, settings, useSettings } from '../state/settings'
 import type { WorldEngine } from '../world/engine'
-import { Reactions } from './Reactions'
 import { useTools } from './tools'
 import { FaceMirror } from './FaceMirror'
 
 export const PlatformFeatures: React.FC<{ engine: WorldEngine }> = ({ engine }) => (
   <>
-    <Reactions engine={engine} />
     <FaceMirror engine={engine} />
     <PersonalMirror engine={engine} />
     <ComfortVignette engine={engine} />
@@ -21,16 +19,15 @@ export const PlatformFeatures: React.FC<{ engine: WorldEngine }> = ({ engine }) 
 
 /**
  * パーソナルミラー: 呼び出した場所の目の前に出る自分用の鏡（ほかの人には見えない）
- * 下の取っ手を押すと持ち、もう一度押すと置く。持っている間は、PC・スマホは視点に、VR は押した手に付いて動く
+ * 鏡面を押すか、VR で鏡の近くでグリップを握ると持てる。PC・スマホは視点に、VR は手に付いて動く
  */
 const PersonalMirror: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   const on = useTools((t) => t.mirror)
-  const world = useTools((t) => t.mirrorWorld)
   const q = useSettings((s) => s.s.quality)
   const camera = useThree((s) => s.camera)
   const group = useRef<Group>(null)
-  const handle = useRef<Group>(null)
   const was = useRef(false)
+  const wasVr = useRef(engine.player.vr)
   const [held, setHeld] = useState<null | { hand: 'left' | 'right' | 'none'; p: Vector3; q: Quaternion }>(null)
   const heldRef = useRef(held)
   heldRef.current = held
@@ -49,27 +46,29 @@ const PersonalMirror: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   useFrame(() => {
     const g = group.current
     if (!g) return
-    if (on && !was.current) {
-      // 呼び出したら目の前へ
-      const p = engine.player
+    const p = engine.player
+    if (on && (!was.current || wasVr.current !== p.vr)) {
+      // 呼び出したときと VR の切り替え時は、現在の目の高さの前へ置く。
       const fwd = new Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw))
-      const at = p.position.clone().addScaledVector(fwd, 1.4)
-      g.position.set(at.x, p.position.y + p.height * 0.55, at.z)
+      const at = p.head.p.clone().addScaledVector(fwd, 1.4)
+      g.position.copy(at)
       g.rotation.set(0, p.yaw, 0)
       setHeld(null)
     }
     was.current = on
-    // VR: 取っ手の近くでグリップを握ると持つ
-    if (on && !heldRef.current && engine.player.vr && handle.current) {
-      const hp = handle.current.getWorldPosition(new Vector3())
+    wasVr.current = p.vr
+    // VR: 鏡面の近くでグリップを握ると持つ
+    if (on && !heldRef.current && engine.player.vr) {
+      g.updateWorldMatrix(true, false)
       for (const hand of ['left', 'right'] as const) {
         const x = xrInput[hand]
-        if (x.connected && x.squeezeDown && x.gripP.distanceTo(hp) < 0.25) {
-          const a = anchor(hand)
-          const inv = a.q.clone().invert()
-          setHeld({ hand, p: g.position.clone().sub(a.p).applyQuaternion(inv), q: inv.multiply(g.quaternion.clone()) })
-          break
-        }
+        if (!x.connected || !x.squeezeDown) continue
+        const grip = g.worldToLocal(x.gripP.clone())
+        if (Math.abs(grip.x) > w / 2 + 0.12 || Math.abs(grip.y) > h / 2 + 0.12 || Math.abs(grip.z) > 0.2) continue
+        const a = anchor(hand)
+        const inv = a.q.clone().invert()
+        setHeld({ hand, p: g.position.clone().sub(a.p).applyQuaternion(inv), q: inv.multiply(g.quaternion.clone()) })
+        break
       }
     }
     const hd = heldRef.current
@@ -83,13 +82,14 @@ const PersonalMirror: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
     }
   })
 
-  // 取っ手を押す: 持つ・置く
+  // 鏡面や取っ手を押す: 持つ・置く
   useEffect(() => {
-    const hdl = handle.current
-    if (!on || !hdl) return
-    return engine.runtime.interact(hdl, () => ({
+    const mirror = group.current
+    if (!on || !mirror) return
+    return engine.runtime.interact(mirror, () => ({
       label: heldRef.current ? '鏡を置く' : '鏡を持つ',
       reach: 4,
+      poke: false,
       onClick: (e) => {
         const g = group.current
         if (!g) return
@@ -108,13 +108,13 @@ const PersonalMirror: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   if (!on) return null
   return (
     <group ref={group}>
-      <MirrorSurface width={w} height={h} quality={qualityProfile(q).mirrorScale} showWorld={world} />
+      <MirrorSurface width={w} height={h} quality={qualityProfile(q).mirrorScale} showWorld />
       {/* 枠と取っ手 */}
       <mesh position={[0, 0, -0.012]} layers={LAYERS.NO_MIRROR}>
         <boxGeometry args={[w + 0.06, h + 0.06, 0.02]} />
         <meshStandardMaterial color="#1b1e27" roughness={0.5} />
       </mesh>
-      <group ref={handle} position={[0, -h / 2 - 0.09, 0]}>
+      <group position={[0, -h / 2 - 0.09, 0]}>
         <mesh layers={LAYERS.NO_MIRROR}>
           <boxGeometry args={[0.34, 0.1, 0.05]} />
           <meshStandardMaterial color={held ? '#3b6df0' : '#2a2f40'} emissive={held ? '#1d3a99' : '#000000'} />

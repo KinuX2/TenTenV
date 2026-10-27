@@ -10,6 +10,7 @@ import { newId } from '../social'
 import { AVATAR_SELECT, avatarInfo, type AvatarRow } from '../views'
 import { imageType, inspectVrm, VrmError } from '../vrm'
 import { likePattern, limitIp, queryFlag, requireUploader, sha256hex } from './util'
+import { ensureUploadQuota } from './uploadQuota'
 
 const MAX_AVATARS_PER_USER = 100
 const THUMB_BYTES = 2 * 1024 * 1024
@@ -82,6 +83,7 @@ export const avatarRoutes = (app: App) => {
     const n = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM avatars WHERE owner_id = ?', me.id)!.n
     if (n >= MAX_AVATARS_PER_USER) throw conflict(`アバターは 1 人 ${MAX_AVATARS_PER_USER} 体までです`)
     const buf = await readBody(req.raw, app.config.limits.avatarBytes)
+    ensureUploadQuota(app, me.id, buf.length)
     let info
     try {
       info = inspectVrm(buf)

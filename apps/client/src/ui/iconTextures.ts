@@ -1,6 +1,6 @@
-// アイコン・リアクションの SVG を 3D の中で使うテクスチャにする
+// アイコンの SVG を 3D の中で使うテクスチャにする
 import { CanvasTexture, SRGBColorSpace, TextureLoader, type Texture } from 'three'
-import { faceSvg, handSvgString, reactionSvg, svgString } from './icons'
+import { faceSvg, handSvgString, svgString } from './icons'
 
 const texCache = new Map<string, CanvasTexture>()
 const toTexture = (key: string, svg: string, size: number) => {
@@ -23,8 +23,6 @@ const toTexture = (key: string, svg: string, size: number) => {
 
 /** 線画のアイコンのテクスチャ */
 export const iconTexture = (name: string, color = '#ffffff', size = 128) => toTexture(`i:${name}:${color}:${size}`, svgString(name, color, 1.8, size), size)
-/** リアクションのテクスチャ */
-export const reactionTexture = (id: string, size = 128) => toTexture(`r:${id}:${size}`, reactionSvg(id, size), size)
 /** 表情のアイコンのテクスチャ */
 export const faceTexture = (face: string, color = '#ffffff', size = 128) => toTexture(`f:${face}:${color}:${size}`, faceSvg(face, color, size), size)
 /** 手の形のアイコンのテクスチャ */

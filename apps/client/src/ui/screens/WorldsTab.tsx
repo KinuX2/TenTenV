@@ -1,29 +1,29 @@
 // ワールドを探す（[107]〜[115]）とワールドの詳細・インスタンス（[81]〜[92]）
 import type { AccessLevel, InstanceSummary, WorldInfo, WorldSummary } from '@tentenv/protocol'
 import { useState } from 'react'
-import { formatTime, L } from '../../i18n'
+import { L } from '../../i18n'
 import { useApp } from '../../state/app'
-import { accessHint, accessLabel, Empty, Modal, run, useAsync, UserIcon, WorldTile } from '../common'
+import { accessHint, accessLabel, Empty, Modal, run, useAsync, WorldTile } from '../common'
 import { createAndJoin, joinInstance } from '../join'
 import { Icon } from '../icons'
+import { DomItems } from '../menu/DomItems'
+import type { MenuItem } from '../menu/model'
 
 type Sort = 'recommended' | 'popular' | 'new' | 'favorites' | 'history' | 'mine'
 
-export const WorldsTab: React.FC<{ openUser: (id: string) => void }> = ({ openUser }) => {
+export const WorldsTab: React.FC = () => {
   const api = useApp((s) => s.api)!
   const me = useApp((s) => s.me)!
   const [q, setQ] = useState('')
   const [query, setQuery] = useState('')
-  const [tag, setTag] = useState<string | null>(null)
   const [sort, setSort] = useState<Sort>('recommended')
   const [open, setOpen] = useState<string | null>(null)
-  const tags = useAsync(() => api.worldTags(), [api])
   const list = useAsync<WorldSummary[]>(async () => {
     if (sort === 'history') return api.worldHistory()
     if (sort === 'favorites') return api.favorites<WorldSummary>('world')
     if (sort === 'mine') return api.worlds({ author: me.id, q: query || undefined })
-    return api.worlds({ q: query || undefined, tag: tag ?? undefined, sort })
-  }, [api, query, tag, sort])
+    return api.worlds({ q: query || undefined, sort })
+  }, [api, query, sort])
   const live = useAsync(() => api.instances({ friends: true }), [api])
   const sorts: { v: Sort; ja: string; en: string }[] = [
     { v: 'recommended', ja: 'おすすめ', en: 'Recommended' },
@@ -60,15 +60,6 @@ export const WorldsTab: React.FC<{ openUser: (id: string) => void }> = ({ openUs
           </button>
         ))}
       </div>
-      {tags.data && tags.data.length > 0 && (
-        <div className="row">
-          {tags.data.slice(0, 24).map((t) => (
-            <span key={t.tag} className={`tag${tag === t.tag ? ' on' : ''}`} onClick={() => setTag(tag === t.tag ? null : t.tag)}>
-              #{t.tag} <span className="muted">{t.count}</span>
-            </span>
-          ))}
-        </div>
-      )}
       {list.error && <div className="err">{list.error}</div>}
       {list.data && list.data.length === 0 && <Empty>{L('ワールドが見つかりません。「制作」からワールドを登録できます。', 'No worlds found. You can upload one from "Create".')}</Empty>}
       <div className="grid">
@@ -76,7 +67,7 @@ export const WorldsTab: React.FC<{ openUser: (id: string) => void }> = ({ openUs
           <WorldTile key={w.id} w={w} onClick={() => setOpen(w.id)} />
         ))}
       </div>
-      {open && <WorldDetail worldId={open} onClose={() => setOpen(null)} openUser={openUser} />}
+      {open && <WorldDetail worldId={open} onClose={() => setOpen(null)} />}
     </div>
   )
 }
@@ -106,14 +97,13 @@ export const InstanceCard: React.FC<{ inst: InstanceSummary }> = ({ inst }) => {
   )
 }
 
-export const WorldDetail: React.FC<{ worldId: string; onClose: () => void; openUser: (id: string) => void }> = ({ worldId, onClose, openUser }) => {
+export const WorldDetail: React.FC<{ worldId: string; onClose: () => void }> = ({ worldId, onClose }) => {
   const api = useApp((s) => s.api)!
   const me = useApp((s) => s.me)!
   const w = useAsync<WorldInfo>(() => api.world(worldId), [api, worldId])
   const insts = useAsync(() => api.instances({ worldId }), [api, worldId])
   const [access, setAccess] = useState<AccessLevel>('public')
   const [capacity, setCapacity] = useState<number | ''>('')
-  const [persistent, setPersistent] = useState(false)
   const [editing, setEditing] = useState(false)
   const data = w.data
   const thumb = api.abs(data?.thumbnailUrl ?? null)
@@ -122,97 +112,51 @@ export const WorldDetail: React.FC<{ worldId: string; onClose: () => void; openU
     await run(() => api.favorite('world', data.id, !data.favorite))
     w.reload()
   }
+  const detailItems: MenuItem[] = data ? [
+    { t: 'section', title: data.name },
+    {
+      t: 'card', key: data.id, title: data.name,
+      sub: `${data.author.displayName} · ${data.occupants}${L('人', ' online')} · ${data.favoriteCount}${L('件のお気に入り', ' favorites')}`,
+      icon: { image: thumb, fallback: 'globe' },
+      buttons: [
+        { label: data.favorite ? L('お気に入り済み', 'Favorited') : L('お気に入り', 'Favorite'), icon: { icon: 'heart' }, on: data.favorite, onClick: () => void fav() },
+        ...(me.homeWorldId === data.id ? [] : [{ label: L('ホームにする', 'Set as home'), icon: { icon: 'home' }, onClick: () => void run(async () => useApp.getState().setMe(await api.updateMe({ homeWorldId: data.id })), L('ホームに設定しました', 'Set as home')) }]),
+        ...(data.author.id === me.id ? [{ label: L('編集', 'Edit'), icon: { icon: 'edit' }, onClick: () => setEditing(true) }] : []),
+      ],
+    },
+    { t: 'note', text: data.description || L('説明はありません', 'No description') },
+    { t: 'note', text: `${L('推奨', 'Recommended')} ${data.recommendedCapacity}${L('人', '')} · ${L('最大', 'Max')} ${data.maxCapacity}${L('人', '')}` },
+    { t: 'section', title: L('新しいインスタンス', 'New Instance') },
+    { t: 'choice', label: L('公開範囲', 'Access'), value: access, options: (['public', 'friends+', 'friends', 'invite+', 'invite'] as AccessLevel[]).map((value) => ({ v: value, label: accessLabel(value) })), onChange: (value) => setAccess(value as AccessLevel) },
+    { t: 'note', text: accessHint(access) },
+  ] : []
+  const instanceItems: MenuItem[] = [
+    { t: 'section', title: L('入れるインスタンス', 'Available Instances') },
+    ...(insts.data ?? []).map((instance) => ({
+      t: 'card' as const, key: instance.id, title: `${instance.name} · ${instance.occupants}/${instance.capacity}`,
+      sub: `${accessLabel(instance.access)} · ${instance.owner.displayName}${instance.queue > 0 ? ` · ${L('待ち', 'Queue')} ${instance.queue}` : ''}`,
+      icon: { icon: 'door' },
+      buttons: [{ label: instance.occupants >= instance.capacity ? L('並ぶ', 'Queue') : L('入る', 'Go'), primary: true, onClick: () => joinInstance(instance.id) }],
+    })),
+  ]
   return (
-    <Modal title={data?.name ?? L('読み込み中…', 'Loading…')} onClose={onClose} wide>
+    <Modal title={data?.name ?? L('読み込み中…', 'Loading…')} onClose={onClose} wide className="world-instance-dialog" header={<div className="world-instance-account"><span className="world-instance-online" />{me.displayName}</div>}>
       {w.error && <div className="err">{w.error}</div>}
       {data && (
-        <>
-          <div className="hero" style={{ backgroundImage: thumb ? `url("${thumb}")` : undefined }}>
-            <div className="shade" />
-            <div className="info">
-              <div className="row small">
-                {data.tags.map((t) => (
-                  <span key={t} className="tag">
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-          <div className="row">
-            <div className="row click grow" style={{ cursor: 'pointer' }} onClick={() => openUser(data.author.id)}>
-              <UserIcon user={data.author} size={28} />
-              <span>{data.author.displayName}</span>
-            </div>
-            <span className="muted small">
-              {L('訪問', 'Visits')} {data.visitCount} · {L('お気に入り', 'Favorites')} {data.favoriteCount} · {L('更新', 'Updated')} {formatTime(data.updatedAt)} · v{data.version}
-            </span>
-            <button className={`btn small${data.favorite ? ' active' : ''}`} onClick={() => void fav()}>
-              <Icon name="heart" size={15} style={{ fill: data.favorite ? 'currentColor' : 'none' }} /> {data.favorite ? L('お気に入り済み', 'Favorited') : L('お気に入り', 'Favorite')}
-            </button>
-            {me.homeWorldId !== data.id && (
-              <button className="btn small" onClick={() => void run(async () => useApp.getState().setMe(await api.updateMe({ homeWorldId: data.id })), L('ホームに設定しました', 'Set as home'))}>
-                <Icon name="home" size={15} /> {L('ホームにする', 'Set as home')}
-              </button>
-            )}
-            {data.author.id === me.id && (
-              <button className="btn small" onClick={() => setEditing(true)}>
-                <Icon name="edit" size={15} /> {L('編集', 'Edit')}
-              </button>
-            )}
-          </div>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{data.description || <span className="muted">{L('説明はありません', 'No description')}</span>}</div>
-          <div className="muted small">
-            {L('推奨', 'Recommended')} {data.recommendedCapacity} {L('人', '')} · {L('最大', 'Max')} {data.maxCapacity} {L('人', '')}
-            {data.manifest.permissions.allowedDomains.length > 0 && ` · ${L('外部への接続', 'External domains')}: ${data.manifest.permissions.allowedDomains.join(', ')}`}
-            {data.manifest.permissions.relaxedRules.length > 0 && ` · ${L('緩和された検査', 'Relaxed checks')}: ${data.manifest.permissions.relaxedRules.join(', ')}`}
-          </div>
-          <hr className="sep" />
-          <div className="section-title">{L('新しいインスタンスを作る', 'New instance')}</div>
-          <div className="row">
-            {(['public', 'friends+', 'friends', 'invite+', 'invite'] as AccessLevel[]).map((a) => (
-              <button key={a} className={`btn small${access === a ? ' active' : ''}`} onClick={() => setAccess(a)} title={accessHint(a)}>
-                {accessLabel(a)}
-              </button>
-            ))}
-          </div>
-          <div className="muted small">{accessHint(access)}</div>
-          <div className="row">
+        <div className="world-instance-content">
+          <DomItems items={detailItems} />
+          <div className="row world-instance-create">
             <label className="row small">
               {L('人数上限', 'Capacity')}
               <input className="input" style={{ width: 90 }} type="number" min={1} max={data.maxCapacity} value={capacity} placeholder={String(data.recommendedCapacity)} onChange={(e) => setCapacity(e.target.value ? Number(e.target.value) : '')} />
             </label>
-            <label className="row small">
-              <input type="checkbox" checked={persistent} onChange={(e) => setPersistent(e.target.checked)} />
-              {L('だれもいなくても残す（24 時間）', 'Keep while empty (24h)')}
-            </label>
-            <button className="btn primary grow" onClick={() => void createAndJoin(data.id, access, { capacity: capacity || undefined, persistent })}>
-              {L('作って入る', 'Create & join')}
-            </button>
+            <button className="btn primary" onClick={() => void createAndJoin(data.id, access, { capacity: capacity || undefined })}>{L('作って入る', 'Create & Go')}</button>
           </div>
-          <div className="section-title">{L('開いているインスタンス', 'Open instances')}</div>
-          {insts.data?.length === 0 && <div className="muted">{L('まだありません', 'None yet')}</div>}
-          <div className="list">
-            {insts.data?.map((i) => (
-              <div key={i.id} className="list-item">
-                <div className="grow">
-                  <div>
-                    {i.name || i.owner.displayName} · {accessLabel(i.access)}
-                  </div>
-                  <div className="muted small">
-                    {L('人数', 'People')} {i.occupants}/{i.capacity}
-                    {i.queue > 0 && ` · ${L('待ち', 'queue')} ${i.queue}`}
-                    {i.friends.length > 0 && ` · ${i.friends.map((f) => f.displayName).join(', ')}`}
-                  </div>
-                </div>
-                <button className="btn small primary" onClick={() => joinInstance(i.id)}>
-                  {i.occupants >= i.capacity ? L('並ぶ', 'Queue') : L('入る', 'Join')}
-                </button>
-              </div>
-            ))}
-          </div>
+          <DomItems items={instanceItems} />
+          {insts.loading && <div className="muted">{L('インスタンスを読み込み中…', 'Loading instances…')}</div>}
+          {insts.data?.length === 0 && <div className="muted">{L('まだインスタンスがありません', 'No instances yet')}</div>}
           {editing && <WorldEdit w={data} onClose={() => (setEditing(false), w.reload())} />}
-        </>
+        </div>
       )}
     </Modal>
   )

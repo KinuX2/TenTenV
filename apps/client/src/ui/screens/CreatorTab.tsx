@@ -5,12 +5,14 @@ import { formatTime, L } from '../../i18n'
 import { useApp } from '../../state/app'
 import { Empty, run, useAsync } from '../common'
 import { Icon } from '../icons'
+import { UploadQuotaBar } from '../UploadQuotaBar'
 
 export const CreatorTab: React.FC<{ openWorld: (id: string) => void }> = ({ openWorld }) => {
   const api = useApp((s) => s.api)!
   const me = useApp((s) => s.me)!
   const info = useApp((s) => s.info)
   const mine = useAsync<WorldSummary[]>(() => api.worlds({ author: me.id }), [api, me.id])
+  const quota = useAsync(() => api.uploadQuota(), [api])
   const [progress, setProgress] = useState<number | null>(null)
   const [target, setTarget] = useState<string>('')
   const upload = async (f: File | undefined) => {
@@ -20,12 +22,14 @@ export const CreatorTab: React.FC<{ openWorld: (id: string) => void }> = ({ open
     setProgress(null)
     if (w) {
       mine.reload()
+      quota.reload()
       openWorld(w.id)
     }
   }
   return (
     <div className="col">
       <h1>{L('制作', 'Create')}</h1>
+      <UploadQuotaBar quota={quota.data} limitBytes={info?.limits.uploadBytes ?? 3 * 1024 ** 3} error={quota.error} />
       <div className="card col">
         <div className="section-title">{L('ワールドを登録する', 'Upload a world')}</div>
         <div className="muted small">
