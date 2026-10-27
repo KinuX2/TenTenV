@@ -1,6 +1,6 @@
 // VRM（0.x / 1.0）の読み込み。正規化された骨・表情・視線・揺れもの・一人称の設定を共通の形にする
 import { VRMLoaderPlugin, VRMSpringBoneCollider, VRMSpringBoneColliderShapeSphere, VRMUtils, type VRM, type VRMSpringBoneColliderGroup } from '@pixiv/three-vrm'
-import { Box3, Mesh, Object3D, Vector3, type Material, type SkinnedMesh } from 'three'
+import { Box3, Mesh, Object3D, Vector3, type BufferGeometry, type Material, type SkinnedMesh } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { LAYERS } from '@tentenv/sdk'
 import { fetchVerified } from '../world/assetCache'
@@ -8,6 +8,46 @@ import { BONES, type AvatarModel, type BoneName } from './types'
 
 const loader = new GLTFLoader()
 loader.register((parser) => new VRMLoaderPlugin(parser, { autoUpdateHumanBones: true }))
+
+// The library's auto first-person mesh removes faces weighted to the head, but
+// neck-weighted faces can still fill the view when the player looks down.
+const removeNeckFromFirstPerson = (scene: Object3D, neck: Object3D | null) => {
+  if (!neck) return
+  scene.traverse((object) => {
+    const mesh = object as SkinnedMesh
+    if (!mesh.isSkinnedMesh || !mesh.name.endsWith('(erase)') || !mesh.layers.isEnabled(LAYERS.FIRST_PERSON_ONLY)) return
+    const neckIndex = mesh.skeleton.bones.findIndex((bone) => bone === neck)
+    if (neckIndex < 0) return
+    const geometry: BufferGeometry = mesh.geometry
+    const index = geometry.getIndex()
+    const skinIndex = geometry.getAttribute('skinIndex')
+    const skinWeight = geometry.getAttribute('skinWeight')
+    if (!index || !skinIndex || !skinWeight) return
+    const touchesNeck = (vertex: number) => {
+      for (let i = 0; i < 4; i++) {
+        if (skinIndex.getComponent(vertex, i) === neckIndex && skinWeight.getComponent(vertex, i) > 0.01) return true
+      }
+      return false
+    }
+    const kept: number[] = []
+    const prefix = [0]
+    for (let i = 0; i + 2 < index.count; i += 3) {
+      const a = index.getX(i), b = index.getX(i + 1), c = index.getX(i + 2)
+      if (!touchesNeck(a) && !touchesNeck(b) && !touchesNeck(c)) kept.push(a, b, c)
+      prefix.push(kept.length)
+    }
+    // Material groups may overlap: some VRMs draw the same face with two
+    // materials. Remap their ranges without adding the triangles twice.
+    const groups = geometry.groups.slice()
+    geometry.clearGroups()
+    for (const group of groups) {
+      const start = prefix[Math.min(prefix.length - 1, Math.floor(group.start / 3))]
+      const end = prefix[Math.min(prefix.length - 1, Math.floor((group.start + group.count) / 3))]
+      if (end > start) geometry.addGroup(start, end - start, group.materialIndex)
+    }
+    geometry.setIndex(kept)
+  })
+}
 
 /** 重すぎるアバターの目安（これを超えると、相手には標準アバターで出す） */
 export const AVATAR_LIMITS = { triangles: 150000, materials: 64, bones: 600, bytes: 100 * 1024 * 1024 }
@@ -101,6 +141,7 @@ export const wrapVrm = (vrm: VRM): AvatarModel => {
     },
     setupFirstPerson: () => {
       vrm.firstPerson?.setup({ firstPersonOnlyLayer: LAYERS.FIRST_PERSON_ONLY, thirdPersonOnlyLayer: LAYERS.THIRD_PERSON_ONLY })
+      removeNeckFromFirstPerson(vrm.scene, vrm.humanoid.getRawBoneNode('neck'))
       // 一人称の設定がないモデル: 頭の骨に付いたメッシュを三人称だけにする
       if (!vrm.firstPerson || vrm.firstPerson.meshAnnotations.length === 0) {
         head?.traverse((o) => {
