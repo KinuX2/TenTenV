@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "build:pages": "tsc -p tsconfig.json --noEmit && node scripts/build-pages.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "capture": "node scripts/capture.mjs",

@@ -2,8 +2,9 @@
 import { createRoot } from 'react-dom/client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { marked } from 'marked'
-import { Footer, Header, Icon, L, page, useLang } from './common'
+import { Icon, L, page, REPO_URL, setLang, useLang } from './common'
 import './site.css'
+import './docs-theme.css'
 import userGuide from '../../../docs/USER_GUIDE.md?raw'
 import sdk from '../../../docs/SDK.md?raw'
 import protocol from '../../../docs/PROTOCOL.md?raw'
@@ -39,6 +40,16 @@ const GROUPS: [Doc['group'], string, string][] = [
   ['project', 'プロジェクト', 'PROJECT'],
 ]
 
+const SUMMARIES: Record<string, [string, string]> = {
+  'user-guide': ['ワールド、メニュー、アバター、音声の使い方', 'Worlds, menus, avatars, and voice'],
+  desktop: ['Windows 版の導入と VR の操作', 'Install and use the Windows app'],
+  sdk: ['ワールド制作とアップロード', 'Create and upload worlds'],
+  server: ['設定、公開、バックアップ', 'Configure, publish, and back up a server'],
+  protocol: ['API、接続、同期の仕組み', 'API, connections, and synchronization'],
+  testing: ['動作確認とトラブルの切り分け', 'Verification and troubleshooting'],
+  'third-party': ['素材とライブラリの利用条件', 'Licenses for assets and libraries'],
+}
+
 /** 見出しのアンカー（GitHub と同じ規則: 小文字にして記号を消し、空白を - に） */
 const slug = (s: string) =>
   s
@@ -61,7 +72,7 @@ const docHref = (id: string, hash = '') => `${page('docs/')}?doc=${id}${hash ? '
 
 const currentId = () => {
   const id = new URLSearchParams(location.search).get('doc')
-  return DOCS.some((d) => d.id === id) ? id! : DOCS[0].id
+  return DOCS.some((d) => d.id === id) ? id : null
 }
 
 /** Markdown から検索用の平文を作る */
@@ -116,25 +127,26 @@ interface TocItem {
 }
 
 const Docs: React.FC = () => {
-  useLang()
-  const [id, setId] = useState(currentId)
+  const lang = useLang()
+  const [id, setId] = useState<string | null>(currentId)
   const [q, setQ] = useState('')
   const [toc, setToc] = useState<TocItem[]>([])
   const [active, setActive] = useState('')
   const body = useRef<HTMLDivElement>(null)
-  const doc = DOCS.find((d) => d.id === id)!
-  const html = useMemo(() => marked.parse(doc.md, { async: false, gfm: true }), [doc])
+  const doc = DOCS.find((d) => d.id === id) ?? null
+  const html = useMemo(() => doc ? marked.parse(doc.md, { async: false, gfm: true }) : '', [doc])
   const hits = useMemo(() => search(q), [q])
 
   // ブラウザの戻る・進む
   useEffect(() => {
+    document.documentElement.classList.add('docs-theme')
     const f = () => setId(currentId())
     window.addEventListener('popstate', f)
-    return () => window.removeEventListener('popstate', f)
+    return () => { document.documentElement.classList.remove('docs-theme'); window.removeEventListener('popstate', f) }
   }, [])
 
-  const open = (next: string, hash = '') => {
-    history.pushState(null, '', docHref(next, hash))
+  const open = (next: string | null, hash = '') => {
+    history.pushState(null, '', next ? docHref(next, hash) : page('docs/'))
     setId(next)
     setQ('')
     if (!hash) window.scrollTo({ top: 0 })
@@ -142,11 +154,12 @@ const Docs: React.FC = () => {
 
   // 描いた本文に、見出しのアンカーとリンクの書き換えをする
   useEffect(() => {
+    document.title = doc ? `${L(doc.ja, doc.en)} — TenTenV Docs` : 'TenTenV Docs'
     const el = body.current
     if (!el) return
-    document.title = `${L(doc.ja, doc.en)} — TenTenV`
     const used = new Map<string, number>()
     const items: TocItem[] = []
+    if (!doc) { setToc([]); return }
     el.querySelectorAll<HTMLHeadingElement>('h1, h2, h3').forEach((h) => {
       const base = slug(h.textContent ?? '')
       const n = used.get(base) ?? 0
@@ -172,6 +185,10 @@ const Docs: React.FC = () => {
           e.preventDefault()
           open(target.id, decodeURIComponent(hash))
         }
+      } else if (file.endsWith('.md')) {
+        a.href = `${REPO_URL}/blob/main/${normalize(`${dir}/${file}`)}${hash ? `#${hash}` : ''}`
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
       }
     })
     // URL の # の位置へ
@@ -194,85 +211,56 @@ const Docs: React.FC = () => {
     return () => window.removeEventListener('scroll', f)
   }, [toc])
 
-  return (
-    <>
-      <Header current="docs" />
-      <div className="wrap docs-layout">
-        <aside className="docs-side">
-          <label className="search">
-            <Icon name="search" size={16} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L('ドキュメントを検索', 'Search docs')} />
-          </label>
-          {GROUPS.map(([g, ja, en]) => (
-            <div key={g} style={{ display: 'grid', gap: 2 }}>
-              <div className="group">{L(ja, en)}</div>
-              {DOCS.filter((d) => d.group === g).map((d) => (
-                <a
-                  key={d.id}
-                  href={docHref(d.id)}
-                  className={d.id === id && !q ? 'on' : undefined}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    open(d.id)
-                  }}
-                >
-                  <Icon name={d.icon} size={18} />
-                  {L(d.ja, d.en)}
-                </a>
-              ))}
-            </div>
-          ))}
-        </aside>
-        <main style={{ minWidth: 0 }}>
-          <div className="docs-mobile-nav">
-            <select value={id} onChange={(e) => open(e.target.value)} aria-label={L('ドキュメント', 'Document')}>
-              {DOCS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {L(d.ja, d.en)}
-                </option>
-              ))}
-            </select>
-            <label className="search" style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, padding: '0 10px' }}>
-              <Icon name="search" size={16} />
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L('検索', 'Search')} style={{ background: 'none', border: 'none', outline: 'none', color: 'var(--text)', font: 'inherit', width: '100%' }} />
-            </label>
-          </div>
-          {q.trim().length >= 2 && (
-            <div className="results">
-              <div className="muted">{hits.length ? L(`「${q}」の検索結果 ${hits.length} 件`, `${hits.length} results for "${q}"`) : L(`「${q}」は見つかりませんでした`, `No results for "${q}"`)}</div>
-              {hits.map((h, i) => (
-                <a
-                  key={i}
-                  href={docHref(h.doc.id, slug(h.heading))}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    open(h.doc.id, slug(h.heading))
-                  }}
-                >
-                  <b>
-                    {L(h.doc.ja, h.doc.en)} / {h.heading}
-                  </b>
-                  <small>
-                    <Highlight text={h.snippet} q={q} />
-                  </small>
-                </a>
-              ))}
-            </div>
-          )}
-          <article className="md" ref={body} dangerouslySetInnerHTML={{ __html: html }} />
-        </main>
-        <nav className="docs-toc">
-          <div className="t">{L('このページの内容', 'ON THIS PAGE')}</div>
-          {toc.map((t) => (
-            <a key={t.id} href={`#${t.id}`} className={`${t.level === 3 ? 'h3' : ''}${active === t.id ? ' on' : ''}`}>
-              {t.text}
-            </a>
-          ))}
+  return <div className="docs-app">
+    <header className="docs-topbar">
+      <div className="docs-width docs-topbar-inner">
+        <a className="docs-brand" href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>
+          <span className="docs-brand-mark">T</span><span>TenTenV <strong>Docs</strong></span>
+        </a>
+        <nav aria-label={L('サイト', 'Site')}>
+          <a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>{L('ガイド', 'Guide')}</a>
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+          <button onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}>{lang === 'ja' ? 'EN' : '日本語'}</button>
         </nav>
       </div>
-      <Footer />
-    </>
-  )
+    </header>
+    <div className="docs-search-band"><div className="docs-width">
+      <label className="docs-search-box"><Icon name="search" size={19} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder={L('ドキュメントを検索', 'Search documentation')} aria-label={L('ドキュメントを検索', 'Search documentation')} /><kbd>⌕</kbd></label>
+    </div></div>
+    <div className="docs-width">
+      {q.trim().length >= 2 ? <main className="docs-results" aria-live="polite">
+        <span className="docs-eyebrow">SEARCH</span><h1>{L('検索結果', 'Search results')} <small>{hits.length}</small></h1>
+        {hits.length ? hits.map((hit, index) => <a key={`${hit.doc.id}-${index}`} href={docHref(hit.doc.id, slug(hit.heading))} onClick={(e) => { e.preventDefault(); open(hit.doc.id, slug(hit.heading)) }}>
+          <small>{L(hit.doc.ja, hit.doc.en)}</small><strong>{hit.heading}</strong><p>{hit.snippet}</p>
+        </a>) : <p className="muted">{L('一致する項目がありません。別の言葉で検索してください。', 'No matches. Try another search term.')}</p>}
+      </main> : !doc ? <main className="docs-home">
+        <div className="docs-home-hero">
+          <div><span className="docs-eyebrow">TENTENV DOCUMENTATION</span><h1>{L('TenTenV を使いこなす', 'Explore TenTenV')}</h1><p>{L('遊び方からワールド制作、サーバー運営まで。必要な情報へすぐ進めるガイドです。', 'Find what you need to play, create worlds, and host a server.')}</p>
+            <a className="docs-start" href={docHref('user-guide')} onClick={(e) => { e.preventDefault(); open('user-guide') }}>{L('使い方から始める', 'Start with the guide')} <span>↗</span></a>
+          </div><div className="docs-hero-art" aria-hidden><span className="docs-orbit orbit-a" /><span className="docs-orbit orbit-b" /><span className="docs-hero-center">T</span></div>
+        </div>
+        {GROUPS.map(([group, ja, en]) => <section className="docs-home-group" key={group}>
+          <div className="docs-group-heading"><span>{L(ja, en)}</span><i /></div>
+          <div className="docs-card-grid">{DOCS.filter((item) => item.group === group).map((item) => <a className="docs-card" key={item.id} href={docHref(item.id)} onClick={(e) => { e.preventDefault(); open(item.id) }}>
+            <span className="docs-card-icon"><Icon name={item.icon} size={24} /></span><strong>{L(item.ja, item.en)}</strong><p>{L(...SUMMARIES[item.id])}</p><span className="docs-card-arrow">↗</span>
+          </a>)}</div>
+        </section>)}
+      </main> : <div className="docs-reader">
+        <aside className="docs-reader-nav" aria-label={L('ドキュメントの一覧', 'Document navigation')}>
+          <a className="docs-back" href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('すべてのガイド', 'All guides')}</a>
+          {GROUPS.map(([group, ja, en]) => <div className="docs-nav-group" key={group}><span>{L(ja, en)}</span>{DOCS.filter((item) => item.group === group).map((item) => <a className={item.id === id ? 'selected' : ''} key={item.id} href={docHref(item.id)} onClick={(e) => { e.preventDefault(); open(item.id) }}>{L(item.ja, item.en)}</a>)}</div>)}
+        </aside>
+        <main className="docs-reader-main">
+          <div className="docs-breadcrumb"><a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>Docs</a><span>/</span><span>{L(doc.ja, doc.en)}</span></div>
+          <div className="docs-reader-intro"><span className="docs-eyebrow">{L('ガイド', 'GUIDE')}</span><p>{L(...SUMMARIES[doc.id])}</p></div>
+          {toc.length > 0 && <details className="docs-inline-toc"><summary>{L('このページの内容', 'On this page')} <span>＋</span></summary><div>{toc.map((item) => <a key={item.id} className={`${item.level === 3 ? 'nested ' : ''}${active === item.id ? 'selected' : ''}`} href={`#${item.id}`}>{item.text}</a>)}</div></details>}
+          <article className="md" ref={body} dangerouslySetInnerHTML={{ __html: html }} />
+          <div className="docs-end"><a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('ガイド一覧に戻る', 'Back to all guides')}</a><a href={`${REPO_URL}/blob/main/${doc.path}`} target="_blank" rel="noopener noreferrer">{L('原文を見る', 'View source')} ↗</a></div>
+        </main>
+      </div>}
+    </div>
+    <footer className="docs-footer"><div className="docs-width"><span>TenTenV Docs</span><a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub ↗</a></div></footer>
+  </div>
 }
 
 createRoot(document.getElementById('root')!).render(<Docs />)

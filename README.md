@@ -4,6 +4,8 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 [Windows 版の最新版をダウンロード](https://github.com/KinuX2/TenTenV/releases/latest)
 
+[オンラインドキュメント](https://kinux2.github.io/TenTenV/)
+
 誰でも自分の「親サーバー」を立てられ、利用者は接続する親サーバーを選びます。参加者どうしは P2P（WebRTC）で直接つながるので、親サーバーが止まっても、すでに同じ部屋にいる人とはそのまま遊び続けられます。
 
 ## デモプレイ動画
