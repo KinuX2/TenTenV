@@ -43,7 +43,21 @@ export class Api {
   /** サーバーが返した相対 URL を絶対 URL にする */
   abs(url: string | null | undefined) {
     if (!url) return null
-    if (/^(https?:|blob:|data:)/.test(url)) return url
+    if (/^(blob:|data:)/.test(url)) return url
+    if (/^https?:/.test(url)) {
+      try {
+        const file = new URL(url)
+        const base = new URL(this.base)
+        const loopback = (host: string) => ['localhost', '127.0.0.1', '[::1]'].includes(host)
+        if (file.pathname.startsWith('/files/') && loopback(file.hostname) && !loopback(base.hostname)) {
+          file.protocol = base.protocol
+          file.hostname = base.hostname
+          file.port = base.port
+          return file.href
+        }
+      } catch { /* 元の URL を使う */ }
+      return url
+    }
     // Resolve file URLs against the public origin and avoid duplicated hostnames.
     try {
       const base = new URL(this.base)

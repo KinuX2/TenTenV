@@ -105,7 +105,6 @@ export const AvatarsTab: React.FC = () => {
   const useBuiltin = (id: string) => actions.setAvatar({ ...DEFAULT_AVATAR, id })
   const useVrm = (a: AvatarInfo) => {
     actions.setAvatar({ kind: 'vrm', id: a.id, url: api.abs(a.fileUrl)!, sha256: a.sha256, scale: 1, outfits: outfitTokens(a.extensions, new Set((a.extensions?.outfits ?? []).filter((o) => o.default).map((o) => o.id))) })
-    void api.updateMe({ currentAvatarId: a.id }).catch(() => {})
   }
   return (
     <div className="col">
@@ -144,6 +143,8 @@ export const AvatarsTab: React.FC = () => {
           </button>
         ))}
       </div>
+      {list.loading && !list.data && <div className="muted">{L('アバターを読み込み中…', 'Loading avatars…')}</div>}
+      {list.error && <div className="err">{list.error} <button className="btn small" onClick={list.reload}>{L('再読み込み', 'Retry')}</button></div>}
       {list.data?.length === 0 && <Empty>{mode === 'mine' ? L('まだアップロードしていません', 'No uploads yet') : L('見つかりません', 'Nothing found')}</Empty>}
       <div className="grid">
         {list.data?.map((a) => {

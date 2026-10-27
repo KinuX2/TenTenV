@@ -1,7 +1,7 @@
 // メニューの操作（画面の UI と VR の 3D メニューで共通）
 import { SleepPose, type AvatarRef, type HandGesture } from '@tentenv/protocol'
 import { L } from '../i18n'
-import { app, toast, useApp } from '../state/app'
+import { app, rememberAvatarSelection, toast, useApp } from '../state/app'
 import { useModeration } from '../state/moderation'
 import { settings, useSettings } from '../state/settings'
 import type { WorldEngine } from '../world/engine'
@@ -80,6 +80,22 @@ export const actions = {
   setAvatar: (a0: AvatarRef) => {
     // 大きさは設定の値を使い、ほかの人にも同じ大きさで見えるようにする
     const a = withScale(a0)
+    const state = useApp.getState()
+    const me = state.me
+    const api = state.api
+    const selectedId = a.kind === 'vrm' ? a.id : null
+    if (api && me && (selectedId !== me.currentAvatarId || state.avatar.kind !== a.kind || state.avatar.id !== a.id)) {
+      rememberAvatarSelection(api.base, me.id, selectedId)
+    }
+    if (api && me && selectedId !== me.currentAvatarId) {
+      const oldId = me.currentAvatarId
+      state.setMe({ ...me, currentAvatarId: selectedId })
+      void api.updateMe({ currentAvatarId: selectedId }).catch((e) => {
+        const now = useApp.getState()
+        if (now.api === api && now.me?.id === me.id && now.me.currentAvatarId === selectedId) now.setMe({ ...now.me, currentAvatarId: oldId })
+        now.toast(L(`アバターの選択を保存できません: ${e instanceof Error ? e.message : String(e)}`, 'Could not save avatar selection'), 'error')
+      })
+    }
     useApp.getState().setAvatar(a)
     const current = activeEngine()
     if (current) {

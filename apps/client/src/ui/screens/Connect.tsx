@@ -2,7 +2,7 @@
 import type { ServerInfo } from '@tentenv/protocol'
 import { PROTOCOL_VERSION } from '@tentenv/protocol'
 import { useEffect, useState } from 'react'
-import { Api } from '../../api/api'
+import { Api, ApiError } from '../../api/api'
 import { L, setLang, useLang } from '../../i18n'
 import { useApp } from '../../state/app'
 import { startSignal } from '../../state/net'
@@ -33,7 +33,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
   const [devUrl, setDevUrl] = useState('http://localhost:5180/')
   const [linkedServer] = useState(() => initialServer ?? new URLSearchParams(location.search).get('server'))
 
-  const connect = async (target: string, auto = false) => {
+  const connect = async (target: string) => {
     const u = normalize(target)
     if (!u) return
     setBusy(true)
@@ -54,12 +54,15 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
           startSignal()
           useApp.getState().setScreen({ kind: 'home' })
           return
-        } catch {
+        } catch (e) {
           api2.setToken(null)
+          setErr(e instanceof ApiError && e.status === 401
+            ? L('前回のログインを復元できません。ゲストで入り直すと別のアカウントになり、以前のアップロードは表示されません。', 'The saved sign-in could not be restored. Signing in as a guest creates a different account, so earlier uploads will not appear.')
+            : L('前回のログインを確認できません。接続先と通信状態を確認してください。', 'Could not verify the saved sign-in. Check the server and connection.'))
         }
       }
     } catch (e) {
-      if (!auto) setErr(e instanceof Error ? e.message : String(e))
+      setErr(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -100,7 +103,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
     if (linkedServer) {
       setUrl(normalize(linkedServer))
       void connect(linkedServer)
-    } else if (servers[0]) void connect(servers[0].url, true)
+    } else if (servers[0]) void connect(servers[0].url)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

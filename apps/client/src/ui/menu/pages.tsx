@@ -351,7 +351,12 @@ const FriendsItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }
 const AvatarItems: React.FC<PageProps> = ({ render }) => {
   const api = useApp((s) => s.api)
   const current = useApp((s) => s.avatar)
-  const mine = useAsync<AvatarInfo[]>(async () => (api ? [...(await api.avatars({ mine: true })), ...(await api.avatars({ favorites: true }))] : []), [api])
+  const mine = useAsync<AvatarInfo[]>(async () => {
+    if (!api) return []
+    const owned = await api.avatars({ mine: true })
+    const favorites = await api.avatars({ favorites: true }).catch(() => [])
+    return [...owned, ...favorites]
+  }, [api])
   const seen = new Set<string>()
   const list = (mine.data ?? []).filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
   const tiles: Extract<MenuItem, { t: 'tiles' }>['items'] = [
@@ -370,6 +375,7 @@ const AvatarItems: React.FC<PageProps> = ({ render }) => {
     { t: 'tiles', items: tiles },
   ]
   if (mine.loading) items.push({ t: 'note', text: L('自分のアバターを読み込み中…', 'Loading your avatars…') })
+  if (mine.error) items.push({ t: 'note', text: mine.error })
   items.push({ t: 'note', text: L('アップロードや詳しい設定はホームの「アバター」から', 'Upload and details are on the home screen') })
   return <>{render(items)}</>
 }

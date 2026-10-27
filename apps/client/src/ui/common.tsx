@@ -100,17 +100,20 @@ export const useAsync = <T,>(fn: () => Promise<T>, deps: unknown[]) => {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const fnRef = useRef(fn)
+  const requestId = useRef(0)
   fnRef.current = fn
   const run = useCallback(() => {
-    let alive = true
+    const id = ++requestId.current
+    const request = fnRef.current
     setLoading(true)
-    fnRef
-      .current()
-      .then((d) => alive && (setData(d), setError(null)))
-      .catch((e) => alive && setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => alive && setLoading(false))
+    setError(null)
+    Promise.resolve()
+      .then(request)
+      .then((d) => { if (id === requestId.current) setData(d) })
+      .catch((e) => { if (id === requestId.current) setError(e instanceof Error ? e.message : String(e)) })
+      .finally(() => { if (id === requestId.current) setLoading(false) })
     return () => {
-      alive = false
+      if (id === requestId.current) requestId.current++
     }
   }, [])
   // eslint-disable-next-line react-hooks/exhaustive-deps
