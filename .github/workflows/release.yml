@@ -62,7 +62,6 @@ jobs:
           name: TenTenV-win32-x64
           path: |
             apps/desktop/dist/TenTenV-win32-x64.zip
-            apps/desktop/dist/TenTenV-win32-x64/**
           if-no-files-found: error
 
   publish:
