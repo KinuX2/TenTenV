@@ -29,8 +29,6 @@ export interface MeshOptions {
   self: PeerDescriptor
   peers: PeerDescriptor[]
   iceServers: IceServer[]
-  /** 自分は P2P を使わない（IP アドレスを知られたくない） */
-  relayOnly: boolean
   /** サーバーが中継を許しているか */
   relayAllowed: boolean
 }
@@ -82,7 +80,7 @@ export class MeshTransport implements Transport {
   }
 
   private usesP2P(desc: PeerDescriptor) {
-    return !this.o.relayOnly && !desc.relayOnly && !desc.hidden
+    return !desc.hidden
   }
 
   private addPeer(desc: PeerDescriptor, initiator: boolean) {

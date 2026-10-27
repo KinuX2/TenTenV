@@ -34,14 +34,12 @@ export interface Member {
   hostScore: number
   role: Role
   ticket: string
-  relayOnly: boolean
 }
 
 export interface QueueEntry {
   conn: JoinConn
   instance: Instance
   hostScore: number
-  relayOnly: boolean
   at: number
 }
 
@@ -184,7 +182,7 @@ export class InstanceManager {
   }
 
   /** WebSocket の join */
-  join(conn: JoinConn, inst: Instance, opts: { hostScore: number; queue: boolean; relayOnly: boolean }): JoinResult {
+  join(conn: JoinConn, inst: Instance, opts: { hostScore: number; queue: boolean }): JoinResult {
     if (conn.member?.instance === inst) return { ok: false, code: 'already_joined', message: 'すでに参加しています' }
     const reason = this.denyReason(inst, conn.userId)
     if (reason) return { ok: false, code: 'denied', message: reason }
@@ -192,13 +190,13 @@ export class InstanceManager {
     // 1 つの接続が入れるインスタンスは 1 つだけ（前のところからは抜ける）
     this.leave(conn)
     if (inst.isFull || inst.queue.length) {
-      const entry: QueueEntry = { conn, instance: inst, hostScore: opts.hostScore, relayOnly: opts.relayOnly, at: Date.now() }
+      const entry: QueueEntry = { conn, instance: inst, hostScore: opts.hostScore, at: Date.now() }
       inst.queue.push(entry)
       conn.queued = entry
       conn.send({ t: 'queued', instanceId: inst.id, position: inst.queue.length })
       return { ok: true }
     }
-    this.admit(conn, inst, opts.hostScore, opts.relayOnly)
+    this.admit(conn, inst, opts.hostScore)
     return { ok: true }
   }
 
@@ -212,7 +210,6 @@ export class InstanceManager {
       ticket: m.ticket,
     }
     if (this.hidden(m, viewer)) d.hidden = true
-    if (m.relayOnly) d.relayOnly = true
     return d
   }
 
@@ -221,7 +218,7 @@ export class InstanceManager {
     return a.userId !== b.userId && this.app.social.blockedEither(a.userId, b.userId)
   }
 
-  private admit(conn: JoinConn, inst: Instance, hostScore: number, relayOnly: boolean) {
+  private admit(conn: JoinConn, inst: Instance, hostScore: number) {
     const row = getUser(this.app, conn.userId)
     const role = this.roleOf(inst, conn.userId)
     const peerId = newId(9)
@@ -234,7 +231,6 @@ export class InstanceManager {
       hostScore,
       role,
       ticket: issueTicket(this.app.keys, { iid: inst.id, uid: conn.userId, pid: peerId, name: row?.display_name ?? '', role }),
-      relayOnly: relayOnly && this.app.config.relay,
     }
     const others = [...inst.members.values()]
     inst.members.set(peerId, member)
@@ -246,7 +242,6 @@ export class InstanceManager {
       peerId,
       ticket: member.ticket,
       peers: others.map((o) => this.descriptor(o, member)),
-      relayOnly: member.relayOnly,
     })
     for (const o of others) o.conn.send({ t: 'peer-joined', peer: this.descriptor(member, o) })
     // 訪問の記録と「最近会った人」
@@ -292,7 +287,7 @@ export class InstanceManager {
         e.conn.send({ t: 'error', code: 'denied', message: reason })
         continue
       }
-      this.admit(e.conn, inst, e.hostScore, e.relayOnly)
+      this.admit(e.conn, inst, e.hostScore)
     }
     this.sendPositions(inst)
   }

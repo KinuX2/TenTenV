@@ -56,10 +56,8 @@ const build = (m: Obj): ClientSignal => {
       need(isId(m.instanceId), 'instanceId が正しくありません')
       need(isNum(m.hostScore) && (m.hostScore as number) >= 0 && (m.hostScore as number) <= 1_000_000, 'hostScore が正しくありません')
       need(m.queue === undefined || typeof m.queue === 'boolean', 'queue が正しくありません')
-      need(m.relayOnly === undefined || typeof m.relayOnly === 'boolean', 'relayOnly が正しくありません')
       const out: ClientSignal = { t: 'join', instanceId: m.instanceId as string, hostScore: m.hostScore as number }
       if (m.queue !== undefined) out.queue = m.queue as boolean
-      if (m.relayOnly !== undefined) out.relayOnly = m.relayOnly as boolean
       return out
     }
     case 'leave':

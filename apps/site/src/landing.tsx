@@ -369,7 +369,7 @@ const Landing: React.FC = () => {
                   ['iPhone で VR は使えますか？', 'Can I use VR on iPhone?', 'iPhone の Safari は WebXR の VR に対応していないため、画面での操作になります。', "iPhone Safari does not support WebXR VR, so you'll play on the screen."],
                   ['使えるアバターの形式は？', 'Which avatar formats are supported?', 'VRM 0.x と 1.0 です。VRM に書かれた利用条件を表示し、アップロードしたアバターはその人だけが使えます。', 'VRM 0.x and 1.0. License info is shown, and uploaded avatars can only be used by the uploader.'],
                   ['親サーバーを変えると、フレンドはどうなりますか？', 'What happens to my friends if I switch servers?', 'アカウント・フレンド・ワールドは親サーバーごとに別です。別の親サーバーの人とは同じインスタンスに入れません。', 'Accounts, friends and worlds are per server. You cannot share an instance across servers.'],
-                  ['IP アドレスは相手に知られますか？', 'Will others see my IP address?', 'P2P では通信相手に知られることがあります。設定の「常に中継を使う」にすると、声も含めて親サーバー経由になり、相手には知られません。', 'With P2P, peers can see it. Turn on "Always relay" to route everything, including voice, through the server.'],
+                  ['IP アドレスは相手に知られますか？', 'Will others see my IP address?', 'P2P では通信相手に知られることがあります。P2P がつながらない場合は、親サーバー経由の通信に自動で切り替わります。', 'With P2P, peers may see your IP address. If P2P cannot connect, communication automatically falls back to the server.'],
               ] as const
               ).map(([qja, qen, aja, aen]) => (
                 <details key={qja}>

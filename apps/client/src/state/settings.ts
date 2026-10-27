@@ -63,8 +63,6 @@ export interface DeviceSettings {
   /** OSC を受ける UDP のポート（Windows 版） */
   oscPort: number
   // ---- 通信・プライバシー（17.5） ----
-  /** IP アドレスを相手に知られないよう、常に中継を使う */
-  relayOnly: boolean
   /** ホストを引き受けない（バッテリー・回線が弱い端末） */
   refuseHost: boolean
   /** ワールドが許可していないドメインの動画・画像も、確認のうえで読み込む */
@@ -123,7 +121,6 @@ export const defaultSettings = (): DeviceSettings => {
     autoSleep: true,
     oscFace: false,
     oscPort: 9000,
-    relayOnly: false,
     refuseHost: mobile,
     allowUntrustedMedia: false,
     language: navigator.language.toLowerCase().startsWith('ja') ? 'ja' : 'en',
@@ -135,7 +132,18 @@ const KEY = 'ttv.settings.v1'
 const load = (): DeviceSettings => {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return { ...defaultSettings(), ...JSON.parse(raw) }
+    if (raw) {
+      const saved = JSON.parse(raw)
+      if (saved && typeof saved === 'object' && 'relayOnly' in saved) {
+        delete saved.relayOnly
+        try {
+          localStorage.setItem(KEY, JSON.stringify(saved))
+        } catch {
+          // 読み取りだけできる端末でも設定は使える
+        }
+      }
+      return { ...defaultSettings(), ...saved }
+    }
   } catch {
     // 壊れていたら既定値
   }

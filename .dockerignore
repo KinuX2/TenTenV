@@ -5,6 +5,7 @@ node_modules
 **/dist
 **/.turbo
 **/coverage
+apps/server/data
 .env
 .env.*
 !.env.example

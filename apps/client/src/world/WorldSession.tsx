@@ -32,7 +32,7 @@ type Joined = Extract<ServerSignal, { t: 'joined' }>
  */
 const joins = {
   current: null as null | { instanceId: string; promise: Promise<Joined>; users: number; queue: Set<(pos: number) => void>; timer?: ReturnType<typeof setTimeout> },
-  acquire(sig: SignalClient, instanceId: string, opts: { hostScore: number; relayOnly: boolean }, onQueue: (pos: number) => void): Promise<Joined> {
+  acquire(sig: SignalClient, instanceId: string, opts: { hostScore: number }, onQueue: (pos: number) => void): Promise<Joined> {
     const c = this.current
     if (c && c.instanceId === instanceId) {
       if (c.timer) clearTimeout(c.timer)
@@ -53,7 +53,7 @@ const joins = {
     })
     promise.catch(() => this.current?.promise === promise && (this.current = null))
     this.current = { instanceId, promise, users: 1, queue }
-    sig.send({ t: 'join', instanceId, hostScore: opts.hostScore, queue: true, relayOnly: opts.relayOnly })
+    sig.send({ t: 'join', instanceId, hostScore: opts.hostScore, queue: true })
     return promise
   },
   release(sig: SignalClient, instanceId: string) {
@@ -135,7 +135,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         if (!alive) return
         const hostScore = s.refuseHost ? 0 : /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 20 : 60
         // 参加（同じインスタンスへの参加が重なったら 1 つにまとめる）
-        const joinedPromise = joins.acquire(sig, instanceId!, { hostScore, relayOnly: s.relayOnly }, (pos) => alive && setPhase({ kind: 'queued', position: pos }))
+        const joinedPromise = joins.acquire(sig, instanceId!, { hostScore }, (pos) => alive && setPhase({ kind: 'queued', position: pos }))
         offs.push(() => joins.release(sig, instanceId!))
         const joined = await joinedPromise
         if (!alive) return
@@ -155,7 +155,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         if (!alive) return
         const ticket = decodeTicketPayload(joined.ticket)
         const self: PeerDescriptor = { peerId: joined.peerId, user: { id: a.me.id, displayName: a.me.displayName, iconUrl: a.me.iconUrl, status: a.me.status, statusText: a.me.statusText, isGuest: a.me.isGuest }, joinedAt: ticket?.iat ?? Date.now(), hostScore, ticket: joined.ticket }
-        const t = new MeshTransport({ signal: sig, self, peers: joined.peers, iceServers: info.iceServers, relayOnly: joined.relayOnly || s.relayOnly, relayAllowed: info.relay })
+        const t = new MeshTransport({ signal: sig, self, peers: joined.peers, iceServers: info.iceServers, relayAllowed: info.relay })
         session = new InstanceSession({ transport: t, serverKey: info.publicKey, serverId: info.serverId, instanceId: inst.id, serverClock: sig.clock, avatar: withScale(a.avatar), allowContact: a.me.settings.allowContact, hostScore })
         offs.push(sig.on('ticket', (m) => session?.updateTicket(m.ticket)))
         engine = new WorldEngine({ api, session, world: { id: wi.id, name: wi.name, baseUrl: api.abs(wi.baseUrl)!, manifest }, instance: inst, dev: false }, withScale(a.avatar))
