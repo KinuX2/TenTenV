@@ -15,7 +15,9 @@ const normalize = (u: string) => {
   return s.replace(/\/+$/, '')
 }
 
-const DEFAULT_SERVER = import.meta.env.VITE_DEFAULT_SERVER ?? (import.meta.env.DEV ? `${location.protocol}//${location.hostname}:8787` : location.origin)
+const DEFAULT_SERVER = import.meta.env.VITE_DEFAULT_SERVER ?? (import.meta.env.DEV
+  ? `${location.protocol}//${location.hostname}:8787`
+  : location.protocol === 'app:' ? 'https://tenten.marusankakusikakuonline.com' : location.origin)
 const PENDING_MIAUTH = 'ttv.miauth.pending'
 
 export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer }) => {

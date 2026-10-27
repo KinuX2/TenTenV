@@ -43,7 +43,7 @@ export const L = (ja: string, en: string) => (lang === 'ja' ? ja : en)
 // ---------------- リンク先 ----------------
 
 /** 「ブラウザで始める」の行き先（クライアント）。ビルド時に VITE_CLIENT_URL で変えられる */
-export const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:5190' : 'http://localhost:8787')
+export const CLIENT_URL = import.meta.env.VITE_CLIENT_URL ?? (import.meta.env.DEV ? 'http://127.0.0.1:5190' : 'https://tenten.marusankakusikakuonline.com/')
 /** ソースコードの置き場所（あれば） */
 export const REPO_URL: string = import.meta.env.VITE_REPO_URL ?? 'https://github.com/KinuX2/TenTenV'
 export const WINDOWS_ZIP = `${import.meta.env.BASE_URL}downloads/TenTenV-win32-x64.zip`

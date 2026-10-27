@@ -160,7 +160,7 @@ npm run package -w @tentenv/desktop        # → apps/desktop/dist/TenTenV-win32
 ```
 
 - `apps/client/dist` が無ければクライアントをビルドしてから同梱します（`--rebuild-client` で必ずビルドし直し、`--no-client` で同梱しない）
-- 同梱クライアントのオリジンは `app://tentenv` です。接続画面の親サーバー欄の初期値を決めたいときは、クライアントのビルド時に環境変数 `VITE_DEFAULT_SERVER=https://your-server.example` を設定してください
+- 同梱クライアントのオリジンは `app://tentenv` です。親サーバーの初期値は `https://tenten.marusankakusikakuonline.com/` です。別の初期値にする場合は、クライアントのビルド時に環境変数 `VITE_DEFAULT_SERVER=https://your-server.example` を設定してください
 - `RunAsNode` などの Electron のヒューズは無効化しています（配布版の exe は Node として動きません）
 
 ## テスト
