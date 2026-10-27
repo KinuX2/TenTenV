@@ -8,14 +8,6 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 誰でも自分の「親サーバー」を立てられ、利用者は接続する親サーバーを選びます。参加者どうしは P2P（WebRTC）で直接つながるので、親サーバーが止まっても、すでに同じ部屋にいる人とはそのまま遊び続けられます。
 
-## デモプレイ動画
-
-ホームワールド内の移動とメニュー操作を収録した約 12 秒の動画です。
-
-https://github.com/user-attachments/assets/9b1257e3-23a7-4210-9783-99f6265c59aa
-
-[MP4 ファイルをダウンロード](https://github.com/KinuX2/TenTenV/releases/download/v0.1.10/demo-play.mp4)
-
 ## スクリーンショット
 
 | ホームワールド | DJ Lounge |
