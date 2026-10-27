@@ -332,22 +332,12 @@ function installTenTenVWebXR() {
         this.hand = new XRHand(session, i)
         this.gamepad = null
         this.gripSpace = new XRSpace(session, (f) => jointMat(f, i, PALM))
-        // 照準は人差し指の付け根から指先へ向ける。
+        // 照準: 人差し指の付け根から、手首の向き（OpenXR の関節は -Z が指先方向）
         this.targetRaySpace = new XRSpace(session, (f) => {
-          const p = jointMat(f, i, 6), tip = jointMat(f, i, 9)
-          if (!p || !tip) return null
-          const dx = tip[12] - p[12], dy = tip[13] - p[13], dz = tip[14] - p[14]
-          const len = Math.hypot(dx, dy, dz)
-          if (len < 0.005) return p
-          const zx = -dx / len, zy = -dy / len, zz = -dz / len
-          let xx = zz, xy = 0, xz = -zx
-          const xlen = Math.hypot(xx, xz)
-          if (xlen < 0.001) { xx = 1; xz = 0 }
-          else { xx /= xlen; xz /= xlen }
-          const m = Float32Array.from(p)
-          m[0] = xx; m[1] = xy; m[2] = xz
-          m[4] = zy * xz - zz * xy; m[5] = zz * xx - zx * xz; m[6] = zx * xy - zy * xx
-          m[8] = zx; m[9] = zy; m[10] = zz
+          const w = jointMat(f, i, 0), p = jointMat(f, i, 6)
+          if (!w || !p) return null
+          const m = Float32Array.from(w)
+          m[12] = p[12]; m[13] = p[13]; m[14] = p[14]
           return m
         })
       } else {
@@ -647,7 +637,7 @@ function installTenTenVWebXR() {
           const a = h.joints, t = 4 * STRIDE, x = 9 * STRIDE
           const dist = a && a[t + 7] >= 0 && a[x + 7] >= 0 ? Math.hypot(a[t] - a[x], a[t + 1] - a[x + 1], a[t + 2] - a[x + 2]) : 1
           const was = this._press[i].select
-          select = was ? dist < 0.075 : dist < 0.055
+          select = was ? dist < 0.025 : dist < 0.015
           squeeze = false
         }
         this._edges(i, src, frame, select, squeeze)

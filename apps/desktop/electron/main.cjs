@@ -55,14 +55,25 @@ const logFile = path.join(logDir, 'desktop.log')
 try {
   if (fs.existsSync(logFile) && fs.statSync(logFile).size > 5e6) fs.renameSync(logFile, logFile + '.old')
 } catch {}
+let stdoutBroken = false
+process.stdout?.on('error', (error) => {
+  if (error.code === 'EPIPE') stdoutBroken = true
+})
 function log(...parts) {
   const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === 'string' ? p : JSON.stringify(p))).join(' ')}`
-  console.log(line)
+  if (!stdoutBroken) {
+    try { console.log(line) } catch (error) {
+      if (error.code === 'EPIPE') stdoutBroken = true
+    }
+  }
   try {
     fs.appendFileSync(logFile, line + '\n')
   } catch {}
 }
-process.on('uncaughtException', (e) => log('[main] uncaught', e && e.stack))
+process.on('uncaughtException', (e) => {
+  if (e?.code === 'EPIPE') { stdoutBroken = true; return }
+  log('[main] uncaught', e && e.stack)
+})
 for (const w of parsed.warnings) log('[config]', w)
 
 // ------------------------------------------------------------------ Chromium の設定

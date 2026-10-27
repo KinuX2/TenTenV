@@ -15,15 +15,14 @@ import { PickupSystem } from './pickups'
 import { LocalAvatar, RemotePlayers } from './players'
 import { xrStore } from './xr'
 import { PlatformFeatures } from '../features/PlatformFeatures'
-import { MenuController, MenuHand, WorldMenu } from '../ui/menu/WorldMenu'
+import { MenuController, WorldMenu } from '../ui/menu/WorldMenu'
 import { useMenu } from '../ui/menuBus'
 import { input } from '../player/input'
 import { perfStats } from '../features/perf'
 import { PlacedPortals } from './PlacedPortals'
 
-// VR のコントローラー・手は見た目を出さず（アバターの手で出す）、メニューを出している間だけレイ・指先で押せるようにする
+// 操作用コントローラーの見た目はアバターに任せ、メニュー表示中だけレイを有効にする
 xrStore.setController(MenuController)
-xrStore.setHand(MenuHand)
 
 const TONE = { aces: ACESFilmicToneMapping, agx: AgXToneMapping, neutral: NeutralToneMapping, none: NoToneMapping }
 

@@ -142,10 +142,10 @@ npm run start:vr
 
 ```powershell
 $env:XR_RUNTIME_JSON = "$env:APPDATA\MetaXR\MetaXrSimulator\<版>\meta_openxr_simulator.json"
-npx electron . --client-url dev
+npx electron . --client-url "http://127.0.0.1:5173/?noemu"
 ```
 
-シミュレーターの窓に Quest 3 として映ります。メニュー（タブ・項目）・仮想キーボード・ダイアログを、このやり方で確かめています。
+先にクライアントの開発サーバーを起動してください。シミュレーターの Inputs → Point + Click で「Enable Point + Click」を有効にすると、マウスでコントローラーのビームを向け、クリックでトリガーを操作できます。メニューのタブ切り替えまで確認しています。
 
 ### Virtual Desktop
 

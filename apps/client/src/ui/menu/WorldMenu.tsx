@@ -1,8 +1,8 @@
 // ワールドの中のメニューを置く（画面: カメラの前いっぱい、VR: 目の前の空間）。中身は MenuPanel ひとつ
-// VR では、メニューを出している間だけ @react-three/xr のレイ（コントローラー）と指先（ハンド）で押せるようにする
+// VR では、メニューを出している間だけコントローラーのレイで選択できるようにする
 import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import { Container, Fullscreen } from '@react-three/uikit'
-import { CombinedPointer, usePointerXRInputSourceEvents, useRayPointer, useTouchPointer, useXRInputSourceStateContext, XRSpace } from '@react-three/xr'
+import { usePointerXRInputSourceEvents, useRayPointer, useXRInputSourceStateContext, XRSpace } from '@react-three/xr'
 import type { Pointer } from '@pmndrs/pointer-events'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Euler, Group, Quaternion, Vector3, type Mesh, type MeshBasicMaterial } from 'three'
@@ -113,42 +113,6 @@ export const MenuController: React.FC = () => {
           <MenuCursor pointer={pointer} />
         </>
       )}
-    </XRSpace>
-  )
-}
-
-/** ハンドトラッキング: メニューを出している間だけ、指先で触れて押せる */
-export const MenuHand: React.FC = () => <CombinedPointer>
-  <MenuHandTouch />
-  <MenuHandRay />
-</CombinedPointer>
-
-const MenuHandTouch: React.FC = () => {
-  const state = useXRInputSourceStateContext('hand')
-  const ref = useRef<Group>(null)
-  const pointer = useTouchPointer(ref, state)
-  const shown = useVrMenuShown((s) => s.shown)
-  useEffect(() => pointer.setEnabled(shown, { timeStamp: performance.now() } as never), [pointer, shown])
-  return (
-    <XRSpace ref={ref} space={state.inputSource.hand.get('index-finger-tip')!}>
-      {shown && <MenuCursor pointer={pointer} />}
-    </XRSpace>
-  )
-}
-
-const MenuHandRay: React.FC = () => {
-  const state = useXRInputSourceStateContext('hand')
-  const ref = useRef<Group>(null)
-  const pointer = useRayPointer(ref, state, { minDistance: 0 })
-  usePointerXRInputSourceEvents(pointer, state.inputSource, 'select', state.events)
-  const shown = useVrMenuShown((s) => s.shown)
-  useEffect(() => pointer.setEnabled(shown, { timeStamp: performance.now() } as never), [pointer, shown])
-  return (
-    <XRSpace ref={ref} space="target-ray-space">
-      {shown && <>
-        <MenuBeam pointer={pointer} fallbackLength={0.7} />
-        <MenuCursor pointer={pointer} />
-      </>}
     </XRSpace>
   )
 }
