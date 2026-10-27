@@ -1,0 +1,15 @@
+{
+  "name": "TenTenV Server",
+  "description": "",
+  "allowGuest": true,
+  "allowGuestUploads": true,
+  "misskey": {
+    "enabled": true,
+    "allowedHosts": null
+  },
+  "limits": {
+    "maxInstanceCapacity": 40
+  },
+  "relay": true,
+  "trustProxy": false
+}

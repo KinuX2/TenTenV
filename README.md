@@ -44,6 +44,20 @@ https://github.com/user-attachments/assets/9b1257e3-23a7-4210-9783-99f6265c59aa
 - Node.js 22.13 以上（24 を推奨）。親サーバーは Node 標準の `node:sqlite` を使うので、データベースを別に入れる必要はありません。
 - 新しめのブラウザ（Chrome / Edge / Firefox / Safari）。VR には WebXR 対応のブラウザ（Quest のブラウザなど）が必要です。
 
+## Docker Compose で起動
+
+リポジトリのルートで次を実行します。初回はアプリと標準ワールドをビルドします。
+
+```sh
+docker compose up --build -d
+```
+
+ブラウザで http://localhost:8787 を開けます。Windows クライアントからも同じアドレスに接続できます。状態は `docker compose ps`、ログは `docker compose logs -f server` で確認できます。停止は `docker compose down` です。利用者・ワールド・鍵は Docker volume に残ります。
+
+設定を変えるときは `.env.example` を `.env` にコピーして、待受アドレス・ホスト側ポート・公開 URL を編集します。サーバー名、ゲストログイン、アップロード、人数制限などは [deploy/compose.config.json](deploy/compose.config.json) を編集します。設定変更後は `docker compose up -d --force-recreate` で反映します。公開 URL には利用者から到達できるアドレスを指定してください。インターネット公開時は HTTPS のリバースプロキシを使用し、設定JSONの `trustProxy` を `true` にします。
+
+既存データを消す操作は `docker compose down -v` です。バックアップ時は volume 内の SQLite データベースと鍵も保存してください。
+
 ## はじめかた（開発）
 
 ```sh

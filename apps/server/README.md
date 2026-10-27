@@ -27,6 +27,8 @@ npm test -w @tentenv/server
 npm run typecheck -w @tentenv/server
 ```
 
+Docker Compose で起動する場合は、リポジトリのルートで `docker compose up --build -d` を実行します。設定方法と保存先は [ルートのREADME](../../README.md#docker-compose-で起動) を参照してください。
+
 ## 設定
 
 設定はデータフォルダの隣にある `server.config.json`（既定では `apps/server/server.config.json`）に書きます。ひな形は `server.config.example.json` です。ファイルがなければすべて既定値で動きます。

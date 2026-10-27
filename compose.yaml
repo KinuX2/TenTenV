@@ -1,0 +1,24 @@
+services:
+  server:
+    build: .
+    command: ["npm", "start", "-w", "@tentenv/server"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "${TTV_BIND:-127.0.0.1}:${TTV_HOST_PORT:-8787}:8787"
+    environment:
+      TTV_DATA: /data
+      TTV_CONFIG: /app/compose.config.json
+      TTV_PUBLIC_URL: ${TTV_PUBLIC_URL:-http://localhost:8787}
+    volumes:
+      - tentenv-data:/data
+      - ./deploy/compose.config.json:/app/compose.config.json:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/info').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  tentenv-data:
