@@ -46,7 +46,7 @@ export class Api {
     // Resolve file URLs against the public origin and avoid duplicated hostnames.
     try {
       const base = new URL(this.base)
-      let path = url.startsWith('/') ? url.replace(/^\\/+/, '') : url
+      let path = url.startsWith('/') ? url.replace(/^\/+/, '') : url
       const hostPrefix = `${base.host}/`
       if (path.startsWith(hostPrefix)) path = path.slice(hostPrefix.length)
       return new URL(`/${path}`, base.origin).href
