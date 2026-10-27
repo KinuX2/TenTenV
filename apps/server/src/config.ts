@@ -104,6 +104,16 @@ export const loadConfig = (env = process.env): ServerConfig => {
   if (env.TTV_PORT) cfg.port = Number(env.TTV_PORT) || cfg.port
   if (env.TTV_DATA) cfg.dataDir = dataDir
   if (env.TTV_PUBLIC_URL) cfg.publicUrl = env.TTV_PUBLIC_URL
-  cfg.publicUrl = cfg.publicUrl.replace(/\/+$/, '')
+  cfg.publicUrl = cfg.publicUrl.trim().replace(/\\/+$/, '')
+  if (cfg.publicUrl) {
+    try {
+      const publicUrl = new URL(cfg.publicUrl)
+      if (publicUrl.protocol !== 'http:' && publicUrl.protocol !== 'https:') throw new Error('HTTP(S) が必要です')
+      // ファイル配信を origin 直下に統一する。
+      cfg.publicUrl = publicUrl.origin
+    } catch {
+      throw new Error('TTV_PUBLIC_URL は https://example.com のような有効な HTTP(S) URL にしてください')
+    }
+  }
   return cfg
 }
