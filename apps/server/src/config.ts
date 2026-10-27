@@ -104,7 +104,7 @@ export const loadConfig = (env = process.env): ServerConfig => {
   if (env.TTV_PORT) cfg.port = Number(env.TTV_PORT) || cfg.port
   if (env.TTV_DATA) cfg.dataDir = dataDir
   if (env.TTV_PUBLIC_URL) cfg.publicUrl = env.TTV_PUBLIC_URL
-  cfg.publicUrl = cfg.publicUrl.trim().replace(/\\/+$/, '')
+  cfg.publicUrl = cfg.publicUrl.trim().replace(/\/+$/, '')
   if (cfg.publicUrl) {
     try {
       const publicUrl = new URL(cfg.publicUrl)
