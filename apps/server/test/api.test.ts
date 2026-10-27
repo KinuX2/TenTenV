@@ -35,7 +35,7 @@ describe('REST API', () => {
   test('サーバー情報', async () => {
     const r = await api(srv, 'GET', '/api/info')
     assert.equal(r.status, 200)
-    assert.equal(r.data.protocol, 1)
+    assert.equal(r.data.protocol, 2)
     assert.equal(r.data.serverId.length, 22)
     assert.equal(r.data.auth.guest, true)
     assert.deepEqual(r.data.auth.misskeyHosts, ['misskey.example'])

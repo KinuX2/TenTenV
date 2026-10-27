@@ -1,6 +1,6 @@
 // REST API で受け渡すデータの形。親サーバーとクライアントで共有する
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 2
 export const SDK_VERSION = '0.1.0'
 
 export interface ServerInfo {

@@ -1,6 +1,6 @@
 # TenTenV 通信仕様
 
-TenTenV の親サーバー・クライアント・参加者どうしの通信の仕様です。型と上限の定義は `packages/protocol/src/` にあります（`api.ts`・`signal.ts`・`peer.ts`・`models.ts`・`limits.ts`）。この文書はそれをまとめたもので、食い違うときはコードが正です。
+TenTenV の親サーバー・クライアント・参加者どうしの通信の仕様です。親サーバーとのプロトコルはバージョン 2 です。型と上限の定義は `packages/protocol/src/` にあります（`api.ts`・`signal.ts`・`peer.ts`・`models.ts`・`limits.ts`）。この文書はそれをまとめたもので、食い違うときはコードが正です。
 
 全体の流れ:
 
@@ -92,7 +92,7 @@ GET /files/thumbs/<id>
 |---|---|---|
 | `hello` | `token`、`protocol` | 最初に送る。10 秒以内に送らないと切断（4001） |
 | `ping` | `id`、`c` | 時計合わせ（`c` は送った時刻） |
-| `join` | `instanceId`、`hostScore`、`queue?`、`relayOnly?` | インスタンスに参加。`queue` で満員なら並ぶ。`relayOnly` で P2P を使わない |
+| `join` | `instanceId`、`hostScore`、`queue?` | インスタンスに参加。`queue` で満員なら並ぶ |
 | `leave` | — | 退出・順番待ちの取り消し |
 | `signal` | `to`、`data` | WebRTC の接続情報を相手へ |
 | `relay` | `to`（peerId か `'*'`）、`ch`（`'r'`・`'u'`）、`data` | P2P の代わりの中継（4 章） |
@@ -109,7 +109,7 @@ GET /files/thumbs/<id>
 |---|---|---|
 | `welcome` | `userId`、`serverTime` | 認証できた |
 | `pong` | `id`、`c`、`s` | `s` は親サーバーの時刻（UNIX ms） |
-| `joined` | `instance`、`peerId`、`ticket`、`peers`、`relayOnly` | 参加できた。`peers` は先にいた人の `PeerDescriptor[]` |
+| `joined` | `instance`、`peerId`、`ticket`、`peers` | 参加できた。`peers` は先にいた人の `PeerDescriptor[]` |
 | `queued` | `instanceId`、`position` | 満員で並んでいる（順番が変わるたびに届く） |
 | `peer-joined` / `peer-left` | `peer` / `peerId` | 人の出入り |
 | `signal` | `from`、`data` | 相手からの接続情報 |
@@ -120,7 +120,7 @@ GET /files/thumbs/<id>
 | `kicked` | `reason` | 退出させられた・インスタンスが閉じた |
 | `error` | `code`、`message` | エラー |
 
-`PeerDescriptor` は `{peerId, user, joinedAt, hostScore, ticket, hidden?, relayOnly?}` です。`peerId` は参加ごとに変わる接続 ID、`joinedAt` は親サーバーの時計で入った時刻です。どちらかがブロックしている相手は `hidden: true` になり、P2P も中継も通りません。
+`PeerDescriptor` は `{peerId, user, joinedAt, hostScore, ticket, hidden?}` です。`peerId` は参加ごとに変わる接続 ID、`joinedAt` は親サーバーの時計で入った時刻です。どちらかがブロックしている相手は `hidden: true` になり、P2P も中継も通りません。
 
 主なエラーコード: `not_found`、`denied`（公開範囲で入れない・キックされた）、`full`、`already_joined`、`not_joined`、`peer_not_found`、`relay_disabled`、`relay_rate`、`bad_message`、`not_authenticated`、`forbidden`、`closed`、`internal`。
 
@@ -201,7 +201,6 @@ interface TicketPayload {
 次のときは、その相手とは親サーバーの WebSocket で話します（状態 `relay`）。
 
 - 10 秒たっても P2P が開かない
-- 自分か相手が `relayOnly`（「常に中継を使う」設定）
 - P2P が開いたあとで切れた（親サーバーがつながっている場合）
 - 相手から中継でメッセージが来た
 
@@ -420,7 +419,7 @@ offset = s + rtt / 2 - (performance.timeOrigin + now)
 
 | 名前 | 今の値 | 確かめる場所 |
 |---|---|---|
-| `PROTOCOL_VERSION` | `1` | クライアントは `/api/info` の `protocol`、親サーバーは `hello` の `protocol` を確かめ、違えば接続しない |
+| `PROTOCOL_VERSION` | `2` | クライアントは `/api/info` の `protocol`、親サーバーは `hello` の `protocol` を確かめ、違えば接続しない |
 | `PEER_PROTOCOL` | `1` | `hello` の `v` で送る（今の版では受け手は確かめていない） |
 | ワールドの `formatVersion` | `1` | 親サーバーとクライアントが確かめる |
 | `SDK_VERSION` | `'0.1.0'` | マニフェストに記録する（読み込みのときには確かめていない） |

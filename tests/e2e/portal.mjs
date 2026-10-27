@@ -17,7 +17,7 @@ const open = async (name, link = client) => {
   const context = await browser.newContext({ viewport: { width: 1024, height: 640 }, permissions: ['microphone', 'camera'] })
   await context.addInitScript(() => {
     const settings = JSON.parse(localStorage.getItem('ttv.settings.v1') || '{}')
-    localStorage.setItem('ttv.settings.v1', JSON.stringify({ ...settings, relayOnly: true, quality: 'low', renderScale: 0.6, shadows: false, startMuted: true }))
+    localStorage.setItem('ttv.settings.v1', JSON.stringify({ ...settings, quality: 'low', renderScale: 0.6, shadows: false, startMuted: true }))
   })
   const page = await context.newPage()
   page.on('pageerror', (error) => errors.push(`[${name}] ${error.message}`))

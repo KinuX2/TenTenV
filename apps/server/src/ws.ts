@@ -123,7 +123,7 @@ export class Connection implements JoinConn {
       case 'join': {
         const inst = app.instances.get(m.instanceId)
         if (!inst) return this.error('not_found', 'インスタンスが見つかりません')
-        const r = app.instances.join(this, inst, { hostScore: m.hostScore, queue: !!m.queue, relayOnly: !!m.relayOnly })
+        const r = app.instances.join(this, inst, { hostScore: m.hostScore, queue: !!m.queue })
         if (!r.ok) this.error(r.code, r.message)
         return
       }

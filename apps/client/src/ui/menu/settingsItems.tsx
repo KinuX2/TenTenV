@@ -201,13 +201,6 @@ const usePrivacy = (): MenuItem[] => {
   const [s, set] = useS()
   const account = useAccountPrivacy()
   return [
-    {
-      t: 'toggle',
-      label: L('常に中継を使う（IP アドレスを相手に知らせない）', 'Always relay (hide your IP address)'),
-      hint: L('P2P では、通信する相手に IP アドレスが知られます。中継は親サーバーの回線を使うため、遅くなることがあります', 'With P2P, peers can see your IP address. Relaying may add latency.'),
-      value: s.relayOnly,
-      onChange: (relayOnly) => set({ relayOnly }),
-    },
     { t: 'toggle', label: L('ホストを引き受けない', 'Never act as host'), hint: L('バッテリーや回線が弱い端末向け', 'For weak devices or connections'), value: s.refuseHost, onChange: (refuseHost) => set({ refuseHost }) },
     { t: 'toggle', label: L('許可されていないドメインの動画・画像も読み込む', 'Allow media from any domain'), hint: L('ワールドが許可していないサイトに、あなたの IP アドレスが送られます', 'Untrusted sites will see your IP address'), value: s.allowUntrustedMedia, onChange: (allowUntrustedMedia) => set({ allowUntrustedMedia }) },
     ...account,

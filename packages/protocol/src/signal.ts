@@ -12,8 +12,6 @@ export interface PeerDescriptor {
   ticket: string
   /** どちらかがブロックしている相手。P2P 接続を張らず、互いに見えない */
   hidden?: boolean
-  /** 相手の端末が P2P を使わず中継だけを使う設定か */
-  relayOnly?: boolean
 }
 
 export interface TicketPayload {
@@ -33,8 +31,7 @@ export interface TicketPayload {
 export type ClientSignal =
   | { t: 'hello'; token: string; protocol: number }
   | { t: 'ping'; id: number; c: number }
-  /** relayOnly: P2P を張らず中継だけを使う（IP アドレスを相手に知らせない） */
-  | { t: 'join'; instanceId: string; hostScore: number; queue?: boolean; relayOnly?: boolean }
+  | { t: 'join'; instanceId: string; hostScore: number; queue?: boolean }
   | { t: 'leave' }
   | { t: 'signal'; to: string; data: SignalData }
   /** P2P が使えない相手へ中継してもらう。to が '*' なら自分以外の全員 */
@@ -59,7 +56,6 @@ export type ServerSignal =
       peerId: string
       ticket: string
       peers: PeerDescriptor[]
-      relayOnly: boolean
     }
   | { t: 'queued'; instanceId: string; position: number }
   | { t: 'peer-joined'; peer: PeerDescriptor }
