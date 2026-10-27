@@ -10,7 +10,7 @@ import { useSettings } from '../../state/settings'
 import type { WorldEngine } from '../../world/engine'
 import { actions, EXPRESSIONS, SLEEP_POSES } from '../actions'
 import { accessLabel, run, statusLabel, useAsync } from '../common'
-import { goToWorld, instanceLink, joinInstance } from '../join'
+import { copyWorldLink, goToWorld, instanceLink, joinInstance } from '../join'
 import { useMenu } from '../menuBus'
 import { uiBridge } from '../bridge'
 import { useTools } from '../../features/tools'
@@ -429,6 +429,7 @@ const WorldDetailItems: React.FC<PageProps & { worldId: string; back: () => void
     { t: 'card', key: w.id, title: w.name, sub: `${w.author.displayName} · ${w.occupants}${L('人', ' online')} · ${w.favoriteCount}${L('件のお気に入り', ' favorites')}`, icon: { image: w.thumbnailUrl ? api.abs(w.thumbnailUrl) : null, fallback: 'globe' }, buttons: [
       { label: w.favorite ? L('お気に入り済み', 'Favorited') : L('お気に入り', 'Favorite'), icon: { icon: 'heart' }, on: w.favorite, onClick: () => void toggleFavorite() },
       ...(me.homeWorldId === w.id ? [] : [{ label: L('ホームにする', 'Set as home'), icon: { icon: 'home' }, onClick: () => void setHome() }]),
+      ...(w.visibility === 'private' ? [] : [{ label: L('ワールドリンクをコピー', 'Copy world link'), icon: { icon: 'link' }, onClick: () => void copyWorldLink(w.id) }]),
     ] },
     { t: 'note', text: w.description || L('説明はありません', 'No description') },
     { t: 'section', title: L('新しいインスタンス', 'New Instance') },
@@ -501,7 +502,10 @@ const InstanceItems: React.FC<PageProps> = ({ engine, render }) => {
         .filter(Boolean)
         .join('\n'),
     },
-    { t: 'buttons', size: 'small', items: [{ label: L('招待リンクをコピー', 'Copy invite link'), icon: { icon: 'link' }, onClick: () => void navigator.clipboard?.writeText(instanceLink(inst.id)).then(() => useApp.getState().toast(L('リンクをコピーしました', 'Link copied'))) }] },
+    { t: 'buttons', size: 'small', items: [
+      { label: L('ワールドリンクをコピー', 'Copy world link'), icon: { icon: 'link' }, onClick: () => void copyWorldLink(engine.ctx.world.id) },
+      { label: L('招待リンクをコピー', 'Copy invite link'), icon: { icon: 'link' }, onClick: () => void navigator.clipboard?.writeText(instanceLink(inst.id)).then(() => useApp.getState().toast(L('リンクをコピーしました', 'Link copied'))) },
+    ] },
     { t: 'section', title: L('フレンドを招待', 'Invite friends') },
   ]
   if (!invitable.length) items.push({ t: 'note', text: L('招待できるオンラインのフレンドはいません', 'No online friends to invite') })

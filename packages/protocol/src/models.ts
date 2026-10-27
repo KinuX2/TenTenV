@@ -7,6 +7,8 @@ export interface ServerInfo {
   protocol: number
   name: string
   description: string
+  /** 共有リンクで使う、外部から到達できるサーバーの URL */
+  publicUrl?: string
   termsUrl: string | null
   /** 参加チケットを検証するための公開鍵（Ed25519, SPKI DER を base64url） */
   publicKey: string

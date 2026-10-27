@@ -1,5 +1,5 @@
 // ホーム画面（ワールドに入る前）
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { L, useLang } from '../../i18n'
 import { useApp } from '../../state/app'
 import { useNet } from '../../state/net'
@@ -20,6 +20,7 @@ type Tab = 'worlds' | 'friends' | 'avatars' | 'profile' | 'notifications' | 'cre
 export const Home: React.FC = () => {
   useLang()
   const me = useApp((s) => s.me)!
+  const screen = useApp((s) => s.screen)
   const info = useApp((s) => s.info)
   const notes = useApp((s) => s.notifications)
   const online = useNet((s) => s.online)
@@ -32,6 +33,12 @@ export const Home: React.FC = () => {
   const [creatorVersion, setCreatorVersion] = useState(0)
   // スマホ: 左上のボタンで開くメニュー
   const [drawer, setDrawer] = useState(false)
+  useEffect(() => {
+    if (screen.kind !== 'home' || !screen.worldId) return
+    setTab('worlds')
+    setWorld(screen.worldId)
+    useApp.getState().setScreen({ kind: 'home' })
+  }, [screen])
   const go = (t: Tab) => {
     setTab(t)
     setDrawer(false)

@@ -13,6 +13,7 @@ export const serverInfo = (app: App): ServerInfo => ({
   protocol: PROTOCOL_VERSION,
   name: app.config.name,
   description: app.config.description,
+  publicUrl: app.publicUrl,
   termsUrl: app.config.termsUrl,
   publicKey: app.keys.publicKey,
   serverId: app.keys.serverId,

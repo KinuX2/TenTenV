@@ -34,11 +34,52 @@ export const createAndJoin = async (worldId: string, access: AccessLevel, opts: 
   }
 }
 
-/** 招待リンク（同じ親サーバーのクライアントで開くとそのインスタンスへ） */
-export const instanceLink = (instanceId: string) => {
+/** 公開URLを起点に、Windows版からでもブラウザで開けるリンクを作る。 */
+const linkBase = () => {
   const api = app().api
-  const u = new URL(location.origin + location.pathname)
-  if (api) u.searchParams.set('server', api.base)
+  if (!api) throw new Error(L('親サーバーに接続してください', 'Connect to a server first'))
+  const u = new URL(app().info?.publicUrl || api.base)
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new Error(L('共有リンクを作れません', 'Cannot create a share link'))
+  u.pathname = '/'
+  u.search = ''
+  u.hash = ''
+  u.searchParams.set('server', u.origin)
+  return u
+}
+
+/** インスタンスを指定しない、ワールド詳細への共有リンク。 */
+export const worldLink = (worldId: string) => {
+  const u = linkBase()
+  u.searchParams.set('world', worldId)
+  return u.toString()
+}
+
+/** 招待リンク（同じ親サーバーのクライアントで開くとそのインスタンスへ）。 */
+export const instanceLink = (instanceId: string) => {
+  const u = linkBase()
   u.searchParams.set('instance', instanceId)
   return u.toString()
+}
+
+export const copyWorldLink = async (worldId: string) => {
+  try {
+    const link = worldLink(worldId)
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link)
+    else {
+      const field = document.createElement('textarea')
+      field.value = link
+      field.style.position = 'fixed'
+      field.style.opacity = '0'
+      document.body.append(field)
+      field.select()
+      try {
+        if (!document.execCommand('copy')) throw new Error('copy failed')
+      } finally {
+        field.remove()
+      }
+    }
+    toast(L('ワールドリンクをコピーしました', 'World link copied'))
+  } catch {
+    toast(L('リンクをコピーできませんでした', 'Could not copy the link'), 'error')
+  }
 }

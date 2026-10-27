@@ -13,7 +13,7 @@ export interface SavedServer {
 
 export type Screen =
   | { kind: 'connect' }
-  | { kind: 'home'; tab?: string }
+  | { kind: 'home'; tab?: string; worldId?: string }
   | { kind: 'world'; instanceId: string }
   /** ワールド制作者のローカル実行（親サーバーなし・複数タブで同期） */
   | { kind: 'dev'; worldUrl: string }

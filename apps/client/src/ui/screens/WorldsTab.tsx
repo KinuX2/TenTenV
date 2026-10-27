@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { L } from '../../i18n'
 import { useApp } from '../../state/app'
 import { accessHint, accessLabel, Empty, Modal, run, useAsync, WorldTile } from '../common'
-import { createAndJoin, joinInstance } from '../join'
+import { copyWorldLink, createAndJoin, joinInstance } from '../join'
 import { Icon } from '../icons'
 import { DomItems } from '../menu/DomItems'
 import type { MenuItem } from '../menu/model'
@@ -121,6 +121,7 @@ export const WorldDetail: React.FC<{ worldId: string; onClose: () => void }> = (
       buttons: [
         { label: data.favorite ? L('お気に入り済み', 'Favorited') : L('お気に入り', 'Favorite'), icon: { icon: 'heart' }, on: data.favorite, onClick: () => void fav() },
         ...(me.homeWorldId === data.id ? [] : [{ label: L('ホームにする', 'Set as home'), icon: { icon: 'home' }, onClick: () => void run(async () => useApp.getState().setMe(await api.updateMe({ homeWorldId: data.id })), L('ホームに設定しました', 'Set as home')) }]),
+        ...(data.visibility === 'private' ? [] : [{ label: L('ワールドリンクをコピー', 'Copy world link'), icon: { icon: 'link' }, onClick: () => void copyWorldLink(data.id) }]),
         ...(data.author.id === me.id ? [{ label: L('編集', 'Edit'), icon: { icon: 'edit' }, onClick: () => setEditing(true) }] : []),
       ],
     },

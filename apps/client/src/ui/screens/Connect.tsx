@@ -18,17 +18,18 @@ const normalize = (u: string) => {
 const DEFAULT_SERVER = import.meta.env.VITE_DEFAULT_SERVER ?? (import.meta.env.DEV ? `${location.protocol}//${location.hostname}:8787` : location.origin)
 const PENDING_MIAUTH = 'ttv.miauth.pending'
 
-export const Connect: React.FC = () => {
+export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer }) => {
   useLang()
   const servers = useApp((s) => s.servers)
   const api = useApp((s) => s.api)
   const info = useApp((s) => s.info)
-  const [url, setUrl] = useState(servers[0]?.url ?? DEFAULT_SERVER)
+  const [url, setUrl] = useState(initialServer ?? servers[0]?.url ?? DEFAULT_SERVER)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [name, setName] = useState(() => localStorage.getItem('ttv.guestName') ?? '')
   const [host, setHost] = useState(() => localStorage.getItem('ttv.misskeyHost') ?? 'misskey.io')
   const [devUrl, setDevUrl] = useState('http://localhost:5180/')
+  const [linkedServer] = useState(() => initialServer ?? new URLSearchParams(location.search).get('server'))
 
   const connect = async (target: string, auto = false) => {
     const u = normalize(target)
@@ -94,7 +95,10 @@ export const Connect: React.FC = () => {
       useApp.getState().setScreen({ kind: 'dev', worldUrl: dev })
       return
     }
-    if (servers[0]) void connect(servers[0].url, true)
+    if (linkedServer) {
+      setUrl(normalize(linkedServer))
+      void connect(linkedServer)
+    } else if (servers[0]) void connect(servers[0].url, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

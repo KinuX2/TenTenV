@@ -67,6 +67,16 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 6px 0; width: 
 .screen { position: absolute; inset: 0; overflow: auto; }
 .center-wrap { min-height: 100%; display: grid; place-items: center; padding: 24px 16px; }
 .connect-card { width: min(460px, 100%); display: grid; gap: 14px; }
+.shared-world-wrap { width: min(820px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 72px; }
+.shared-world-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 19px; font-weight: 800; }
+.shared-world-brand img { width: 32px; height: 32px; }
+.shared-world-card { padding: 0; overflow: hidden; }
+.shared-world-image { min-height: 270px; aspect-ratio: 16 / 7; display: grid; place-items: center; background: var(--bg2) center / cover no-repeat; color: var(--sub); }
+.shared-world-content { display: grid; gap: 13px; padding: 25px; }
+.shared-world-content h1 { margin: 0; font-size: clamp(24px, 3.5vw, 34px); }
+.shared-world-content p { margin: 0; white-space: pre-wrap; line-height: 1.7; }
+.shared-world-actions { display: grid; justify-items: start; gap: 10px; margin-top: 9px; padding-top: 19px; border-top: 1px solid var(--line); }
+@media (max-width: 600px) { .shared-world-wrap { padding-top: 20px; } .shared-world-image { min-height: 170px; } .shared-world-content { padding: 18px; } }
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 26px; letter-spacing: .02em; }
 .brand img { width: 40px; height: 40px; }
 .home { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
