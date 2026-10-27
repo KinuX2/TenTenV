@@ -235,9 +235,9 @@ const Docs: React.FC = () => {
         </a>) : <p className="muted">{L('一致する項目がありません。別の言葉で検索してください。', 'No matches. Try another search term.')}</p>}
       </main> : !doc ? <main className="docs-home">
         <div className="docs-home-hero">
-          <div><span className="docs-eyebrow">TENTENV DOCUMENTATION</span><h1>{L('TenTenV を使いこなす', 'Explore TenTenV')}</h1><p>{L('遊び方からワールド制作、サーバー運営まで。必要な情報へすぐ進めるガイドです。', 'Find what you need to play, create worlds, and host a server.')}</p>
+          <div><span className="docs-eyebrow">TENTENV DOCUMENTATION</span><h1>{L('TenTenV ドキュメント', 'TenTenV Documentation')}</h1><p>{L('遊び方、ワールド制作、サーバー運営に必要な情報をまとめています。', 'Guides for playing, creating worlds, and hosting a server.')}</p>
             <a className="docs-start" href={docHref('user-guide')} onClick={(e) => { e.preventDefault(); open('user-guide') }}>{L('使い方から始める', 'Start with the guide')} <span>↗</span></a>
-          </div><div className="docs-hero-art" aria-hidden><span className="docs-orbit orbit-a" /><span className="docs-orbit orbit-b" /><span className="docs-hero-center">T</span></div>
+          </div>
         </div>
         {GROUPS.map(([group, ja, en]) => <section className="docs-home-group" key={group}>
           <div className="docs-group-heading"><span>{L(ja, en)}</span><i /></div>
