@@ -109,7 +109,7 @@ export const MenuController: React.FC = () => {
     <XRSpace ref={ref} space="target-ray-space">
       {shown && (
         <>
-          <PointerRayModel pointer={pointer} color="#8ec5ff" opacity={0.85} />
+          <PointerRayModel pointer={pointer} color="#8ec5ff" opacity={0.85} renderOrder={10000} />
           <MenuCursor pointer={pointer} />
         </>
       )}

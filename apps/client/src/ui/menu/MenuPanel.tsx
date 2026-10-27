@@ -564,7 +564,7 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ engine, vr, close, exitVR,
     <Page key={current} engine={engine} vr={vr} close={close} exitVR={exitVR} render={(items) => <Items items={items} openKeyboard={setKb} />} />
   )
   return (
-    <Container width={PANEL_W} height={keyboardVisible ? 460 : PANEL_H} depthTest={false} renderOrder={1001} flexDirection="row" borderRadius={20} backgroundColor={C.panel} borderWidth={1} borderColor={C.line} overflow="hidden">
+    <Container width={PANEL_W} height={keyboardVisible ? 460 : PANEL_H} depthTest={vr} renderOrder={1001} flexDirection="row" borderRadius={20} backgroundColor={C.panel} borderWidth={1} borderColor={C.line} overflow="hidden">
       <Container flexGrow={1} flexShrink={1} flexDirection="column">
         <Container height={66} flexShrink={0} flexDirection="row" alignItems="center" paddingX={BODY_PAD} backgroundColor={C.panel} borderTopLeftRadius={20} borderTopRightRadius={20} borderBottomWidth={1} borderColor={C.line}>
           {accountBadge}
