@@ -83,7 +83,7 @@ npm run start:vr
 | `--client-url <URL>` | 開くクライアント。`bundled`（同梱 / `apps/client/dist`）、`dev`（`http://127.0.0.1:5190`）も使える |
 | `--vr` | ワールドに入ったら自動で VR に入る（SteamVR から起動したときに付く） |
 | `--scale <倍率>` | ランタイムの推奨解像度に対する倍率（0.25〜2、既定 1）。重いときは 0.7〜0.8 に |
-| `--latency low\|smooth` | `low`（既定）: 描いた画像をなるべく同じフレームで出す / `smooth`: 常に 1 フレーム遅れで出す（ページの描画が重いとき） |
+| `--latency low\|smooth` | `smooth`（既定）: 転送待ちでフレーム処理を止めない / `low`: 描いた画像をなるべく同じフレームで出す |
 | `--bridge native\|ipc` | `native`（既定）: preload がアドオンを直接使う / `ipc`: preload もサンドボックス化し、アドオンはメインプロセスで動かす（画素を IPC でコピーするので遅い） |
 | `--xr-mock [controllers\|hands\|cycle]` | ヘッドセット無しで疑似 HMD を使う（開発・動作確認用） |
 | `--profile <フォルダ>` | ログイン状態・設定・ログの保存先（既定 `%APPDATA%\TenTenV`）。複数アカウントを同時に使うとき |
@@ -101,7 +101,7 @@ npm run start:vr
 {
   "clientUrl": "https://client.example.org/",
   "resolutionScale": 0.8,
-  "latency": "low",
+  "latency": "smooth",
   "bridge": "native",
   "allowedOrigins": []
 }
@@ -179,7 +179,7 @@ npm run package -w @tentenv/desktop        # → apps/desktop/dist/TenTenV-win32
 ## 仕組みの詳細
 
 - **フレームループ**: `waitFrame`（ネイティブの別スレッド）→ `beginFrame` / `locateViews` / `syncInput` → ページの XR コールバック（three が両眼を描く）→ 同じタスク内で WebGPU に GPU コピーを積む → 読み戻し → アドオンの別スレッドでステージングテクスチャへコピー → スワップチェーン → `endFrame`。画像は「それを描いたときの姿勢」と一緒に提出するので、遅れたフレームもランタイムが正しく再投影します
-- **低遅延モード**（既定）: 次のフレームの締め切りの 8 割まで、そのフレームの転送完了を待ってから `endFrame` します。間に合わなければ直前の画像を出し、fps は落としません
+- **フレーム処理**: 既定では画像転送を待たずに `endFrame` し、転送が遅れたときは直前の画像を使います。`--latency low` を指定した場合だけ、フレーム時間の 8 割を上限として転送を待ちます
 - **基準空間**: ネイティブ側は STAGE（無ければ LOCAL_FLOOR → LOCAL）。WebXR の `local` / `local-floor` は、ブラウザと同じく「VR に入ったときの立ち位置と向き」を原点にします。`bounded-floor` はプレイエリア（`boundsGeometry` はプレイエリアの長方形）
 - **入力**（`xr-standard`）: `buttons[0]` トリガー、`[1]` グリップ、`[2]` タッチパッド、`[3]` スティック押し込み、`[4]` A / X、`[5]` B / Y、`axes[0,1]` タッチパッド、`axes[2,3]` スティック。Touch / Touch Plus / Index / Vive / WMR / simple のバインドを用意しています。プロファイル名は WebXR Input Profiles の名前（`oculus-touch-v3`、`valve-index` など）
 - **ハンドトラッキング**: `hand-tracking` を要求したページで、コントローラーを持っていない手を `XRHand`（25 関節）として出します。親指と人差し指の先が近づくと `select` になります

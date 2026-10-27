@@ -55,7 +55,7 @@ test('invalid values fall back', () => {
   assert.equal(r.config.clientUrl, DEV_CLIENT_URL)
   assert.equal(r.config.bridge, 'native')
   assert.equal(r.config.resolutionScale, 1)
-  assert.equal(r.config.latency, 'low')
+  assert.equal(r.config.latency, 'smooth')
   assert.ok(r.warnings.length > 0)
 })
 

@@ -10,7 +10,7 @@
 //   --vr                            読み込み後、ワールドに入ったら自動で VR に入る
 //   --bridge native|ipc             native: preload でアドオンを直接使う（速い・既定）/ ipc: preload もサンドボックス化し、アドオンはメインプロセス
 //   --scale <n>                     ランタイム推奨解像度に対する倍率（既定 1）
-//   --latency low|smooth            low: 描いたフレームを同じフレームで出す（既定）/ smooth: 1 フレーム遅れで出す
+//   --latency low|smooth            smooth: フレーム処理を止めずに転送する（既定）/ low: 同じフレームでの提出を試す
 //   --xr-mock [controllers|hands|cycle]  OpenXR の代わりに疑似 HMD を使う
 //   --unlock-fps                    Chromium の垂直同期を外す（--vr のときは既定でオン）
 //   --devtools                      開発者ツールを開く
@@ -31,7 +31,7 @@ const DEFAULTS = Object.freeze({
   vr: false,
   bridge: 'native',
   resolutionScale: 1,
-  latency: 'low',
+  latency: 'smooth',
   mock: false,
   mockInput: 'cycle',
   unlockFrameRate: null, // null = --vr のときだけ
@@ -106,7 +106,7 @@ function loadConfig({ argv, env = {}, files = [], packaged = false, bundledAvail
   if (arg.has('devtools')) cfg.devTools = true
 
   cfg.bridge = oneOf(cfg.bridge, ['native', 'ipc'], 'native')
-  cfg.latency = oneOf(cfg.latency, ['low', 'smooth'], 'low')
+  cfg.latency = oneOf(cfg.latency, ['low', 'smooth'], 'smooth')
   cfg.mockInput = oneOf(cfg.mockInput, ['controllers', 'hands', 'cycle'], 'cycle')
   cfg.resolutionScale = num(cfg.resolutionScale, 1, 0.25, 2)
   cfg.mock = cfg.mock === true

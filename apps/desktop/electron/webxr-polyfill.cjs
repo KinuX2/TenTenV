@@ -422,7 +422,7 @@ function installTenTenVWebXR() {
       this.domOverlayState = null
       this.renderState = { depthNear: 0.1, depthFar: 1000, inlineVerticalFieldOfView: null, baseLayer: null, layers: [] }
       for (const k of ['end', 'inputsourceschange', 'select', 'selectstart', 'selectend', 'squeeze', 'squeezestart', 'squeezeend', 'visibilitychange', 'frameratechange']) this['on' + k] = null
-      this._st = { n: 0, t: performance.now(), cb: 0, maxCb: 0, wait: 0, late: 0 }
+      this._st = { n: 0, t: performance.now(), cb: 0, maxCb: 0, wait: 0, late: 0, renderable: 0, drawn: 0, queued: 0 }
       // ループは次のタスクから（requestSession の呼び出し元がイベントを登録してから状態が進むように）
       this._loop = sleep(0).then(() => this._run())
     }
@@ -557,6 +557,7 @@ function installTenTenVWebXR() {
       const render = layer && lv.valid && (fs.shouldRender || !this._presentedOnce)
       let presented = null
       if (render) {
+        this._st.renderable++
         const cbs = [...this._callbacks.values()]
         this._callbacks.clear()
         const c0 = performance.now()
@@ -566,9 +567,15 @@ function installTenTenVWebXR() {
         const c1 = performance.now()
         this._st.cb += c1 - c0
         this._st.maxCb = Math.max(this._st.maxCb, c1 - c0)
-        // 描画と同じタスクのうちに GPU コピーを積む（キャンバスの内容が有効なうちに）
-        presented = layer._present(lv.seq)
-        if (presented) this._presentedOnce = true
+        if (cbs.length) {
+          this._st.drawn++
+          // 新しい描画があるときだけ GPU コピーを積む。古い画面の再転送は負荷になる。
+          presented = layer._present(lv.seq)
+          if (presented) {
+            this._st.queued++
+            this._presentedOnce = true
+          }
+        }
       }
       if (presented && CONFIG.latency !== 'smooth') {
         // 低遅延: 次のフレームの締め切りの少し前までは、この画像の転送を待ってから endFrame する
@@ -583,8 +590,11 @@ function installTenTenVWebXR() {
       st.wait += frameStart - t0
       const now = performance.now()
       if (now - st.t > 10000) {
-        log(`${((st.n * 1000) / (now - st.t)).toFixed(1)} fps | page ${(st.cb / st.n).toFixed(1)}ms (max ${st.maxCb.toFixed(1)}) | wait ${(st.wait / st.n).toFixed(1)}ms | late ${st.late}`)
-        st.n = st.cb = st.maxCb = st.wait = st.late = 0
+        log(`${((st.n * 1000) / (now - st.t)).toFixed(1)} fps | draw ${st.drawn}/${st.renderable}/${st.n} | queue ${st.queued} | page ${(st.cb / st.n).toFixed(1)}ms (max ${st.maxCb.toFixed(1)}) | wait ${(st.wait / st.n).toFixed(1)}ms | late ${st.late}`)
+        Promise.resolve(B.stats()).then((s) => {
+          if (s?.bridge) log(`transfer submitted ${s.bridge.presented} dropped ${s.bridge.dropped} failed ${s.bridge.failed} | map ${s.bridge.mapMs}ms submit ${s.bridge.submitMs}ms`)
+        }).catch(() => {})
+        st.n = st.cb = st.maxCb = st.wait = st.late = st.renderable = st.drawn = st.queued = 0
         st.t = now
       }
     }
