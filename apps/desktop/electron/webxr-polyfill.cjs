@@ -422,7 +422,7 @@ function installTenTenVWebXR() {
       this.domOverlayState = null
       this.renderState = { depthNear: 0.1, depthFar: 1000, inlineVerticalFieldOfView: null, baseLayer: null, layers: [] }
       for (const k of ['end', 'inputsourceschange', 'select', 'selectstart', 'selectend', 'squeeze', 'squeezestart', 'squeezeend', 'visibilitychange', 'frameratechange']) this['on' + k] = null
-      this._st = { n: 0, t: performance.now(), cb: 0, maxCb: 0, wait: 0, late: 0, renderable: 0, drawn: 0, queued: 0 }
+      this._st = { n: 0, t: performance.now(), cb: 0, maxCb: 0, wait: 0, late: 0, renderable: 0, drawn: 0, queued: 0, requested: 0, forced: 0 }
       // ループは次のタスクから（requestSession の呼び出し元がイベントを登録してから状態が進むように）
       this._loop = sleep(0).then(() => this._run())
     }
@@ -524,6 +524,8 @@ function installTenTenVWebXR() {
       else if (e.type === 'error') warn(e.detail)
     }
     _state(s) {
+      this._runtimeState = s
+      log(`session state ${s}`)
       const vis = s === 'focused' ? 'visible' : s === 'visible' ? 'visible-blurred' : 'hidden'
       if (vis !== this.visibilityState) {
         this.visibilityState = vis
@@ -553,8 +555,12 @@ function installTenTenVWebXR() {
       this._inputs(hands, frame)
 
       const layer = this.renderState.baseLayer
-      // shouldRender が false でも、まだ 1 枚も出していなければ描く（ランタイムによっては最初の画像が届くまで表示状態に進まない）
-      const render = layer && lv.valid && (fs.shouldRender || !this._presentedOnce)
+      // 一部のランタイムは最初の画像を受け取るまで表示状態に進まない。
+      // 同期状態が続く間は描画を続け、表示可能になったら shouldRender に従う。
+      const forceRender = this._runtimeState === 'synchronized'
+      if (fs.shouldRender) this._st.requested++
+      if (!fs.shouldRender && forceRender) this._st.forced++
+      const render = layer && lv.valid && (fs.shouldRender || forceRender)
       let presented = null
       if (render) {
         this._st.renderable++
@@ -573,7 +579,6 @@ function installTenTenVWebXR() {
           presented = layer._present(lv.seq)
           if (presented) {
             this._st.queued++
-            this._presentedOnce = true
           }
         }
       }
@@ -590,11 +595,11 @@ function installTenTenVWebXR() {
       st.wait += frameStart - t0
       const now = performance.now()
       if (now - st.t > 10000) {
-        log(`${((st.n * 1000) / (now - st.t)).toFixed(1)} fps | draw ${st.drawn}/${st.renderable}/${st.n} | queue ${st.queued} | page ${(st.cb / st.n).toFixed(1)}ms (max ${st.maxCb.toFixed(1)}) | wait ${(st.wait / st.n).toFixed(1)}ms | late ${st.late}`)
+        log(`${((st.n * 1000) / (now - st.t)).toFixed(1)} fps | state ${this._runtimeState || 'unknown'} | requested ${st.requested} forced ${st.forced} | draw ${st.drawn}/${st.renderable}/${st.n} | queue ${st.queued} | page ${(st.cb / st.n).toFixed(1)}ms (max ${st.maxCb.toFixed(1)}) | wait ${(st.wait / st.n).toFixed(1)}ms | late ${st.late}`)
         Promise.resolve(B.stats()).then((s) => {
           if (s?.bridge) log(`transfer submitted ${s.bridge.presented} dropped ${s.bridge.dropped} failed ${s.bridge.failed} | map ${s.bridge.mapMs}ms submit ${s.bridge.submitMs}ms`)
         }).catch(() => {})
-        st.n = st.cb = st.maxCb = st.wait = st.late = st.renderable = st.drawn = st.queued = 0
+        st.n = st.cb = st.maxCb = st.wait = st.late = st.renderable = st.drawn = st.queued = st.requested = st.forced = 0
         st.t = now
       }
     }

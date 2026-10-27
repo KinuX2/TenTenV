@@ -180,6 +180,7 @@ npm run package -w @tentenv/desktop        # → apps/desktop/dist/TenTenV-win32
 
 - **フレームループ**: `waitFrame`（ネイティブの別スレッド）→ `beginFrame` / `locateViews` / `syncInput` → ページの XR コールバック（three が両眼を描く）→ 同じタスク内で WebGPU に GPU コピーを積む → 読み戻し → アドオンの別スレッドでステージングテクスチャへコピー → スワップチェーン → `endFrame`。画像は「それを描いたときの姿勢」と一緒に提出するので、遅れたフレームもランタイムが正しく再投影します
 - **フレーム処理**: 既定では画像転送を待たずに `endFrame` し、転送が遅れたときは直前の画像を使います。`--latency low` を指定した場合だけ、フレーム時間の 8 割を上限として転送を待ちます
+- **表示開始時の描画**: OpenXR が同期状態で `shouldRender=false` を返し続ける場合も描画を続けます。表示状態に進んだ後はランタイムの描画指示に従います
 - **基準空間**: ネイティブ側は STAGE（無ければ LOCAL_FLOOR → LOCAL）。WebXR の `local` / `local-floor` は、ブラウザと同じく「VR に入ったときの立ち位置と向き」を原点にします。`bounded-floor` はプレイエリア（`boundsGeometry` はプレイエリアの長方形）
 - **入力**（`xr-standard`）: `buttons[0]` トリガー、`[1]` グリップ、`[2]` タッチパッド、`[3]` スティック押し込み、`[4]` A / X、`[5]` B / Y、`axes[0,1]` タッチパッド、`axes[2,3]` スティック。Touch / Touch Plus / Index / Vive / WMR / simple のバインドを用意しています。プロファイル名は WebXR Input Profiles の名前（`oculus-touch-v3`、`valve-index` など）
 - **ハンドトラッキング**: `hand-tracking` を要求したページで、コントローラーを持っていない手を `XRHand`（25 関節）として出します。親指と人差し指の先が近づくと `select` になります
