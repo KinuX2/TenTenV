@@ -484,7 +484,7 @@ const readXrInput = (gl: WebGLRenderer, origin: Group) => {
       const th = new Vector3()
       if (tip && xrSpaceToWorld(gl, tip, origin, tp, q)) st.tipP.copy(tp)
       if (tip && thumb && xrSpaceToWorld(gl, thumb, origin, th, q)) {
-        const pinch = MathUtils.clamp(1 - (tp.distanceTo(th) / origin.scale.x - 0.015) / 0.03, 0, 1)
+        const pinch = MathUtils.clamp(1 - (tp.distanceTo(th) / origin.scale.x - 0.045) / 0.05, 0, 1)
         const was = st.trigger > 0.8
         st.trigger = pinch
         st.triggerDown = !was && pinch > 0.8

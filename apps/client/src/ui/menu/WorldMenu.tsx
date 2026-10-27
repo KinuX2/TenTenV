@@ -2,7 +2,7 @@
 // VR では、メニューを出している間だけ @react-three/xr のレイ（コントローラー）と指先（ハンド）で押せるようにする
 import { createPortal, useFrame, useThree } from '@react-three/fiber'
 import { Container, Fullscreen } from '@react-three/uikit'
-import { PointerRayModel, usePointerXRInputSourceEvents, useRayPointer, useTouchPointer, useXRInputSourceStateContext, XRSpace } from '@react-three/xr'
+import { CombinedPointer, usePointerXRInputSourceEvents, useRayPointer, useTouchPointer, useXRInputSourceStateContext, XRSpace } from '@react-three/xr'
 import type { Pointer } from '@pmndrs/pointer-events'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Euler, Group, Quaternion, Vector3, type Mesh, type MeshBasicMaterial } from 'three'
@@ -109,7 +109,7 @@ export const MenuController: React.FC = () => {
     <XRSpace ref={ref} space="target-ray-space">
       {shown && (
         <>
-          <PointerRayModel pointer={pointer} color="#8ec5ff" opacity={0.85} renderOrder={10000} />
+          <MenuBeam pointer={pointer} fallbackLength={0.7} />
           <MenuCursor pointer={pointer} />
         </>
       )}
@@ -118,7 +118,12 @@ export const MenuController: React.FC = () => {
 }
 
 /** ハンドトラッキング: メニューを出している間だけ、指先で触れて押せる */
-export const MenuHand: React.FC = () => {
+export const MenuHand: React.FC = () => <CombinedPointer>
+  <MenuHandTouch />
+  <MenuHandRay />
+</CombinedPointer>
+
+const MenuHandTouch: React.FC = () => {
   const state = useXRInputSourceStateContext('hand')
   const ref = useRef<Group>(null)
   const pointer = useTouchPointer(ref, state)
@@ -131,7 +136,40 @@ export const MenuHand: React.FC = () => {
   )
 }
 
+const MenuHandRay: React.FC = () => {
+  const state = useXRInputSourceStateContext('hand')
+  const ref = useRef<Group>(null)
+  const pointer = useRayPointer(ref, state, { minDistance: 0 })
+  usePointerXRInputSourceEvents(pointer, state.inputSource, 'select', state.events)
+  const shown = useVrMenuShown((s) => s.shown)
+  useEffect(() => pointer.setEnabled(shown, { timeStamp: performance.now() } as never), [pointer, shown])
+  return (
+    <XRSpace ref={ref} space="target-ray-space">
+      {shown && <>
+        <MenuBeam pointer={pointer} fallbackLength={0.7} />
+        <MenuCursor pointer={pointer} />
+      </>}
+    </XRSpace>
+  )
+}
+
 // ---------------------------------------------------------------- ポインターの先（カーソル）
+
+const MenuBeam: React.FC<{ pointer: Pointer; fallbackLength: number }> = ({ pointer, fallbackLength }) => {
+  const beam = useRef<Mesh>(null)
+  useFrame(() => {
+    const mesh = beam.current
+    if (!mesh) return
+    const distance = pointer.getIntersection()?.distance
+    const length = distance == null ? fallbackLength : Math.max(0.03, Math.min(distance, 2))
+    mesh.position.z = -length / 2
+    mesh.scale.set(0.004, 0.004, length)
+  })
+  return <mesh ref={beam} renderOrder={10000} frustumCulled={false}>
+    <boxGeometry args={[1, 1, 1]} />
+    <meshBasicMaterial color="#8ec5ff" transparent opacity={0.85} depthTest={false} depthWrite={false} toneMapped={false} />
+  </mesh>
+}
 
 const Z = new Vector3(0, 0, 1)
 const _q = new Quaternion()
