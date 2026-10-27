@@ -148,9 +148,9 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       } else if (Math.abs(tx) > 0.15) S.originYaw -= tx * MathUtils.degToRad(s.smoothTurnSpeed) * dt
       if (turnHand.primaryDown) f.jump = true
       if (turnHand.stickDown) f.crouchToggle = true
-      if (moveHand.secondaryDown) menuBus.toggle()
+      if (L.secondaryDown) menuBus.toggle()
       if (moveHand.primaryDown) f.muteToggle = true
-      if (turnHand.secondaryDown) menuBus.toggleGestures()
+      if (R.secondaryDown) menuBus.toggleGestures()
       // 手の形（[21]）
       p.handTracking = L.handTracking || R.handTracking
     }

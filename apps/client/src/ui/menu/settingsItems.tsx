@@ -111,8 +111,8 @@ const useMovement = (): MenuItem[] => {
     {
       t: 'note',
       text: L(
-        'PC: WASD 移動 · Shift 走る · Space ジャンプ · C しゃがむ · Z 伏せる · クリック 押す・つかむ · F 持った物を使う · R / Esc メニュー · Enter チャット · M ミュート · Alt+1〜8 ジェスチャー。VR: 左スティック 移動 · 右スティック 向き · トリガー 押す · グリップ つかむ · 左手の Y / B メニュー',
-        'Desktop: WASD move · Shift run · Space jump · C crouch · Z prone · Click use/grab · F use held · R/Esc menu · Enter chat · M mute · Alt+1–8 gestures. VR: left stick move · right stick turn · trigger press · grip grab · left Y/B menu',
+        'PC: WASD 移動 · Shift 走る · Space ジャンプ · C しゃがむ · Z 伏せる · クリック 押す・つかむ · F 持った物を使う · R / Esc メニュー · Enter チャット · M ミュート · Alt+1〜8 ジェスチャー。VR: 左スティック 移動 · 右スティック 向き · トリガー 押す · グリップ つかむ · 左手の Y メニュー開閉 · 右手の B 表情メニュー',
+        'Desktop: WASD move · Shift run · Space jump · C crouch · Z prone · Click use/grab · F use held · R/Esc menu · Enter chat · M mute · Alt+1–8 gestures. VR: left stick move · right stick turn · trigger press · grip grab · left Y toggle menu · right B expressions',
       ),
     },
   ]
