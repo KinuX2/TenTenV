@@ -20,6 +20,20 @@ npm start -w @tentenv/server
 
 初回起動時に `apps/server/data/` が作られ、署名用の鍵（Ed25519）も自動で作られます。既定では `http://localhost:8787` で待ち受けます。
 
+## ログと障害調査
+
+サーバーログは 1 行 1 JSON（JSON Lines）で標準出力・標準エラーに出力します。Docker では `docker compose logs -f server`、systemd では `journalctl -u tentenv -f` で確認できます。
+
+主なイベント:
+
+- `server.started` / `server.listening` / `server.shutdown.*`: 起動・待受・終了処理
+- `http.request.completed`: HTTP メソッド、パス（クエリ文字列を除く）、ステータス、処理時間、応答サイズ、`requestId`
+- `http.request.failed` / `http.server.error`: HTTP 処理やサーバーのエラー（スタックトレースを含む）
+- `websocket.connected` / `websocket.authenticated` / `websocket.disconnected`: WebSocket の接続・認証・切断と接続数
+- `process.unhandled_rejection` / `process.uncaught_exception`: プロセスで処理されなかったエラー
+
+HTTP レスポンスには `x-request-id` が付与されます。問い合わせ時はこの値と発生時刻を合わせると該当リクエストを追いやすくなります。ログには認証トークン、Cookie、クエリ文字列、クライアント IP は記録しません。ログの保存期間・ローテーションは Docker / systemd / ホスティング側のログ管理で設定してください。
+
 テスト:
 
 ```sh
