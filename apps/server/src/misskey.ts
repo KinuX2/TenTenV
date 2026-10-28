@@ -8,6 +8,8 @@ import { getUser, type UserRow } from './views'
 
 /** ホスト名（ポート付き可）。IP アドレスや localhost は受け付けない */
 const HOST_RE = /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(:\d{1,5})?$/
+/** デスクトップ版の同梱クライアントの場所（app://tentenv/） */
+const DESKTOP_CLIENT_HOST = 'tentenv'
 const SESSION_TTL = 15 * 60_000
 
 export const normalizeHost = (host: unknown): string => {
@@ -33,7 +35,9 @@ export const startMiAuth = (app: App, hostIn: unknown, callback: unknown) => {
   } catch {
     throw badRequest('callback の URL が正しくありません')
   }
-  if (cb.protocol !== 'https:' && cb.protocol !== 'http:') throw badRequest('callback は http(s) の URL にしてください')
+  // デスクトップ版は同梱のクライアントを app://tentenv/ で開くので、ログインの戻り先もそこになる
+  const desktop = cb.protocol === 'app:' && cb.host === DESKTOP_CLIENT_HOST
+  if (cb.protocol !== 'https:' && cb.protocol !== 'http:' && !desktop) throw badRequest('callback は http(s) の URL（デスクトップ版は app://tentenv/）にしてください')
   const session = randomUUID()
   const now = Date.now()
   app.db.run('DELETE FROM miauth_sessions WHERE created_at < ?', now - SESSION_TTL)
