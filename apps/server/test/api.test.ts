@@ -177,6 +177,12 @@ describe('REST API', () => {
     assert.equal(u.searchParams.get('callback'), 'https://client.example/cb')
     assert.equal((await api(srv, 'POST', '/api/auth/misskey/start', { body: { host: 'other.example', callback: 'https://c/' } })).status, 403)
     assert.equal((await api(srv, 'POST', '/api/auth/misskey/start', { body: { host: '127.0.0.1/../x', callback: 'https://c/' } })).status, 400)
+    // デスクトップ版（同梱のクライアントは app://tentenv/）は戻り先にできる。ほかの app:// や危ない形式はだめ
+    const desktop = await api(srv, 'POST', '/api/auth/misskey/start', { body: { host: 'misskey.example', callback: 'app://tentenv/' } })
+    assert.equal(desktop.status, 200)
+    assert.equal(new URL(desktop.data.url).searchParams.get('callback'), 'app://tentenv/')
+    for (const callback of ['app://evil/', 'javascript:alert(1)', 'file:///C:/x', 'tentenv://x/'])
+      assert.equal((await api(srv, 'POST', '/api/auth/misskey/start', { body: { host: 'misskey.example', callback } })).status, 400, callback)
 
     const a = await misskeyLogin(srv, 'alice')
     assert.equal(a.me.handle, '@alice@misskey.example')
