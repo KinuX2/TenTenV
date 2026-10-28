@@ -1,11 +1,13 @@
 // WebSocket（/ws）: 認証・時計合わせ・インスタンスへの参加・P2P の信号の受け渡し・中継
 import type { WebSocket } from 'ws'
+import { randomUUID } from 'node:crypto'
 import { ByteBucket, LIMITS, PROTOCOL_VERSION, RateLimiter, type ClientSignal, type ServerSignal } from '@tentenv/protocol'
 import type { App } from './app'
 import { userFromToken } from './auth'
 import type { JoinConn, Member, QueueEntry } from './instances'
 import { issueTicket } from './keys'
 import { parseClientSignal } from './wsmsg'
+import { logger } from './logger'
 
 /** hello を待つ時間 */
 const HELLO_TIMEOUT = 10_000
@@ -13,6 +15,7 @@ const HELLO_TIMEOUT = 10_000
 const MAX_STRIKES = 20
 
 export class Connection implements JoinConn {
+  readonly connectionId = randomUUID()
   userId = ''
   authed = false
   member: Member | null = null
@@ -37,8 +40,11 @@ export class Connection implements JoinConn {
     this.helloTimer = setTimeout(() => !this.authed && this.close(4001, 'hello timeout'), HELLO_TIMEOUT)
     ws.on('message', (data, isBinary) => this.onRaw(data as Buffer, isBinary))
     ws.on('pong', () => (this.alive = true))
-    ws.on('close', () => this.onClose())
-    ws.on('error', () => this.ws.terminate())
+    ws.on('close', (code, reason) => this.onClose(code, reason.toString()))
+    ws.on('error', (error) => {
+      logger.warn('websocket.connection.error', { connectionId: this.connectionId, error: error.message })
+      this.ws.terminate()
+    })
   }
 
   get isOpen() {
@@ -51,7 +57,7 @@ export class Connection implements JoinConn {
 
   close(code: number, reason: string) {
     // 異常な切断は理由を残す（運営者が原因を調べられるように）
-    if (code === 1008 || code === 4003) console.warn(`[ws] 切断 ${code} ${reason}（${this.userId ?? "未認証"}）`)
+    if (code === 1008 || code === 4003) logger.warn('websocket.connection.closing', { connectionId: this.connectionId, code, reason, authenticated: this.authed })
     if (this.ws.readyState === this.ws.OPEN || this.ws.readyState === this.ws.CONNECTING) this.ws.close(code, reason)
   }
 
@@ -104,7 +110,7 @@ export class Connection implements JoinConn {
     try {
       this.onMessage(parsed.msg)
     } catch (e) {
-      console.error('[ws]', e)
+      logger.error('websocket.message.failed', e, { connectionId: this.connectionId, authenticated: this.authed })
       this.error('internal', 'サーバーでエラーが起きました')
     }
   }
@@ -186,6 +192,7 @@ export class Connection implements JoinConn {
     this.authed = true
     this.userId = user.id
     this.app.hub.add(this)
+    logger.info('websocket.authenticated', { connectionId: this.connectionId })
     this.send({ t: 'welcome', userId: user.id, serverTime: Date.now() })
   }
 
@@ -225,8 +232,9 @@ export class Connection implements JoinConn {
     this.ws.terminate()
   }
 
-  private onClose() {
+  private onClose(code: number, reason: string) {
     clearTimeout(this.helloTimer)
+    logger.info('websocket.disconnected', { connectionId: this.connectionId, code, reason, authenticated: this.authed, activeConnections: this.app.connections.size })
     this.markDone()
     if (this.app.closed) return
     this.app.connections.delete(this)
