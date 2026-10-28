@@ -27,7 +27,11 @@ export class SignalClient {
   private url() {
     const u = new URL(this.baseUrl)
     u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
-    u.pathname = u.pathname.replace(/\/$/, '') + '/ws'
+    // The server only upgrades the origin-root `/ws` endpoint. Do not append to
+    // a configured API path (for example `/api/ws`), which is rejected with 404.
+    u.pathname = '/ws'
+    u.search = ''
+    u.hash = ''
     return u.toString()
   }
 
