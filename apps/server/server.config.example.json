@@ -13,6 +13,14 @@
     "enabled": true,
     "allowedHosts": null
   },
+  "google": {
+    "clientId": null,
+    "clientSecret": null
+  },
+  "x": {
+    "clientId": null,
+    "clientSecret": null
+  },
   "limits": {
     "avatarBytes": 104857600,
     "worldBytes": 314572800,

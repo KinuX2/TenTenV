@@ -1,8 +1,8 @@
 // 起動画面: 親サーバーを選んでログインする（4.3・5.1）
-import type { ServerInfo } from '@tentenv/protocol'
+import type { MeInfo, ServerInfo } from '@tentenv/protocol'
 import { PROTOCOL_VERSION } from '@tentenv/protocol'
-import { useEffect, useState } from 'react'
-import { Api, ApiError } from '../../api/api'
+import { useEffect, useRef, useState } from 'react'
+import { Api, ApiError, type OAuthProvider } from '../../api/api'
 import { L, setLang, useLang } from '../../i18n'
 import { useApp } from '../../state/app'
 import { startSignal } from '../../state/net'
@@ -20,6 +20,10 @@ const DEFAULT_SERVER = import.meta.env.VITE_DEFAULT_SERVER ?? (import.meta.env.D
   ? `${location.protocol}//${location.hostname}:8787`
   : location.protocol === 'app:' ? 'https://tenten.marusankakusikakuonline.com' : location.origin)
 const PENDING_MIAUTH = 'ttv.miauth.pending'
+/** デスクトップ版は Google・X の許可の画面を既定のブラウザーで開き、終わるまで待つ（アプリ内の画面は Google に断られる） */
+const OAUTH_POLL_MS = 3000
+const OAUTH_WAIT_MS = 15 * 60_000
+const OAUTH_LABEL: Record<OAuthProvider, string> = { google: 'Google', x: 'X' }
 
 export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer }) => {
   useLang()
@@ -32,6 +36,10 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
   const [host, setHost] = useState(() => localStorage.getItem('ttv.misskeyHost') ?? 'misskey.io')
   const [devUrl, setDevUrl] = useState('http://localhost:5180/')
   const [linkedServer] = useState(() => initialServer ?? new URLSearchParams(location.search).get('server'))
+  /** 既定のブラウザーでの許可を待っている方法 */
+  const [waiting, setWaiting] = useState<OAuthProvider | null>(null)
+  const waitId = useRef(0)
+  useEffect(() => () => void waitId.current++, [])
 
   const connect = async (target: string, knownInfo?: ServerInfo) => {
     const u = normalize(target)
@@ -57,7 +65,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
         } catch (e) {
           api2.setToken(null)
           setErr(e instanceof ApiError && e.status === 401
-            ? L('前回のログインを復元できません。Misskey でログインし直してください。', 'The saved sign-in could not be restored. Please sign in with Misskey again.')
+            ? L('前回のログインを復元できません。もう一度ログインしてください。', 'The saved sign-in could not be restored. Please sign in again.')
             : L('前回のログインを確認できません。接続先と通信状態を確認してください。', 'Could not verify the saved sign-in. Check the server and connection.'))
         }
       }
@@ -68,13 +76,19 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
     }
   }
 
-  // MiAuth から戻ってきた
+  const signedIn = (token: string, me: MeInfo) => {
+    useApp.getState().login(token, me)
+    startSignal()
+    useApp.getState().setScreen({ kind: 'home' })
+  }
+
+  // MiAuth・Google・X から戻ってきた
   useEffect(() => {
     const q = new URLSearchParams(location.search)
     const session = q.get('session')
     const pending = localStorage.getItem(PENDING_MIAUTH)
     if (session && pending) {
-      const { server } = JSON.parse(pending) as { server: string }
+      const { server, provider } = JSON.parse(pending) as { server: string; provider?: OAuthProvider }
       localStorage.removeItem(PENDING_MIAUTH)
       history.replaceState(null, '', location.pathname)
       void (async () => {
@@ -83,10 +97,10 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
           const a = new Api(server, null)
           const inf = await a.info()
           useApp.getState().connect(server, inf)
-          const r = await useApp.getState().api!.misskeyFinish(session)
-          useApp.getState().login(r.token, r.me)
-          startSignal()
-          useApp.getState().setScreen({ kind: 'home' })
+          const a2 = useApp.getState().api!
+          const r = provider ? await a2.oauthFinish(provider, session) : await a2.misskeyFinish(session)
+          if ('pending' in r) throw new Error(L('ログインを確認できませんでした。もう一度やり直してください。', 'Could not confirm the sign-in. Please try again.'))
+          signedIn(r.token, r.me)
         } catch (e) {
           setErr(e instanceof Error ? e.message : String(e))
         } finally {
@@ -131,7 +145,52 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
     }
   }
 
+  const oauth = async (provider: OAuthProvider) => {
+    if (!api) return
+    setBusy(true)
+    setErr(null)
+    try {
+      if (location.protocol !== 'app:') {
+        const r = await api.oauthStart(provider, `${location.origin}${location.pathname}`)
+        localStorage.setItem(PENDING_MIAUTH, JSON.stringify({ server: api.base, session: r.session, provider }))
+        location.href = r.url
+        return
+      }
+      const r = await api.oauthStart(provider)
+      // 新しいウィンドウにすると、デスクトップ版は既定のブラウザーで開く
+      window.open(r.url, '_blank', 'noopener')
+      const id = ++waitId.current
+      setWaiting(provider)
+      const until = Date.now() + OAUTH_WAIT_MS
+      try {
+        while (Date.now() < until) {
+          await new Promise((ok) => setTimeout(ok, OAUTH_POLL_MS))
+          if (waitId.current !== id) return
+          const f = await api.oauthFinish(provider, r.session)
+          if (waitId.current !== id) return
+          if ('pending' in f) continue
+          signedIn(f.token, f.me)
+          return
+        }
+        throw new Error(L('ログインの有効期限が切れました。もう一度やり直してください。', 'The sign-in expired. Please try again.'))
+      } finally {
+        if (waitId.current === id) setWaiting(null)
+      }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const cancelWait = () => {
+    waitId.current++
+    setWaiting(null)
+    setBusy(false)
+  }
+
   const lang = useLang()
+  const oauthProviders = (['google', 'x'] as const).filter((p) => info?.auth[p])
+  const canSignIn = !!info && (info.auth.misskey || oauthProviders.length > 0)
   return (
     <div className="screen">
       <div className="center-wrap">
@@ -221,7 +280,27 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
                   <div className="muted small">{L('パスワードはこの親サーバーに送られません。Misskey の画面で許可してください。', 'Your password is never sent to this server.')}</div>
                 </div>
               )}
-              {!info.auth.misskey && <div className="muted">{L('この親サーバーではログインを利用できません。', 'Sign-in is unavailable on this server.')}</div>}
+              {oauthProviders.length > 0 && (
+                <div className="col">
+                  <div className="section-title">{info.auth.misskey ? L('ほかのアカウントでログイン', 'Or sign in with') : L('ログイン', 'Sign in')}</div>
+                  <div className="row">
+                    {oauthProviders.map((p) => (
+                      <button key={p} className="btn grow" disabled={busy} onClick={() => void oauth(p)}>
+                        {L(`${OAUTH_LABEL[p]} でログイン`, `Sign in with ${OAUTH_LABEL[p]}`)}
+                      </button>
+                    ))}
+                  </div>
+                  {waiting ? (
+                    <div className="row">
+                      <div className="muted small grow">{L(`ブラウザーで開いた ${OAUTH_LABEL[waiting]} の画面で許可してください。許可すると自動でログインします。`, `Approve in the ${OAUTH_LABEL[waiting]} page opened in your browser. You will be signed in automatically.`)}</div>
+                      <button className="btn small" onClick={cancelWait}>{L('やめる', 'Cancel')}</button>
+                    </div>
+                  ) : (
+                    <div className="muted small">{L('パスワードはこの親サーバーに送られません。親サーバーが読むのは名前とアイコンだけです。', 'Your password is never sent to this server. Only your name and icon are read.')}</div>
+                  )}
+                </div>
+              )}
+              {!canSignIn && <div className="muted">{L('この親サーバーではログインを利用できません。', 'Sign-in is unavailable on this server.')}</div>}
             </>
           )}
           {err && <div className="err">{err}</div>}

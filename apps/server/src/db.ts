@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS miauth_sessions (
   created_at INTEGER NOT NULL
 );
 
+-- Google・X（OAuth 2.0）のログイン途中の状態。callback が NULL なら、クライアントが finish を繰り返して待つ
+CREATE TABLE IF NOT EXISTS oauth_sessions (
+  session TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  verifier TEXT NOT NULL,
+  callback TEXT,
+  code TEXT,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS friends (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   friend_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

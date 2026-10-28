@@ -25,9 +25,8 @@ export const checkHostAllowed = (app: App, host: string) => {
   if (m.allowedHosts && !m.allowedHosts.includes(host)) throw forbidden(`このサーバーでは ${host} のアカウントでログインできません`)
 }
 
-export const startMiAuth = (app: App, hostIn: unknown, callback: unknown) => {
-  const host = normalizeHost(hostIn)
-  checkHostAllowed(app, host)
+/** ログインのあとに戻る先（クライアントの画面）。http(s) か、デスクトップ版の app://tentenv/ だけ */
+export const checkCallback = (callback: unknown): URL => {
   if (typeof callback !== 'string' || callback.length > 1000) throw badRequest('callback を指定してください')
   let cb: URL
   try {
@@ -38,6 +37,13 @@ export const startMiAuth = (app: App, hostIn: unknown, callback: unknown) => {
   // デスクトップ版は同梱のクライアントを app://tentenv/ で開くので、ログインの戻り先もそこになる
   const desktop = cb.protocol === 'app:' && cb.host === DESKTOP_CLIENT_HOST
   if (cb.protocol !== 'https:' && cb.protocol !== 'http:' && !desktop) throw badRequest('callback は http(s) の URL（デスクトップ版は app://tentenv/）にしてください')
+  return cb
+}
+
+export const startMiAuth = (app: App, hostIn: unknown, callback: unknown) => {
+  const host = normalizeHost(hostIn)
+  checkHostAllowed(app, host)
+  const cb = checkCallback(callback)
   const session = randomUUID()
   const now = Date.now()
   app.db.run('DELETE FROM miauth_sessions WHERE created_at < ?', now - SESSION_TTL)

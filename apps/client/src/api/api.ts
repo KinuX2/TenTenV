@@ -17,6 +17,8 @@ import type {
   WorldSummary,
 } from '@tentenv/protocol'
 
+export type OAuthProvider = 'google' | 'x'
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -128,6 +130,9 @@ export class Api {
   info = () => this.req<ServerInfo>('GET', '/api/info')
   misskeyStart = (host: string, callback: string) => this.req<{ url: string; session: string }>('POST', '/api/auth/misskey/start', { host, callback })
   misskeyFinish = (session: string) => this.req<{ token: string; me: MeInfo }>('POST', '/api/auth/misskey/finish', { session })
+  /** Google・X。callback を省くと、finish が {pending: true} を返すあいだ待つ */
+  oauthStart = (provider: OAuthProvider, callback?: string) => this.req<{ url: string; session: string }>('POST', `/api/auth/${provider}/start`, callback ? { callback } : {})
+  oauthFinish = (provider: OAuthProvider, session: string) => this.req<{ token: string; me: MeInfo } | { pending: true }>('POST', `/api/auth/${provider}/finish`, { session })
   logout = () => this.req<void>('POST', '/api/auth/logout')
   me = () => this.req<MeInfo>('GET', '/api/me')
   uploadQuota = () => this.req<UploadQuota>('GET', '/api/me/upload-quota')
