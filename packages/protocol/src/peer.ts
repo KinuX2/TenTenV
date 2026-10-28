@@ -282,6 +282,10 @@ export const BINARY_VOICE = 3
 export const BINARY_SCREEN = 4
 /** 画面共有の映像の断片 1 つの大きさの上限（ヘッダーを含む） */
 export const SCREEN_FRAGMENT_BYTES = 16 * 1024
+/** 画面共有の音（Opus）: [5][チャンネル数 u8][連番 u16][Opus のデータ]。P2P の相手にも中継の相手にも送る */
+export const BINARY_SCREEN_AUDIO = 5
+/** 画面共有の音のパケット 1 つの大きさの上限 */
+export const SCREEN_AUDIO_PACKET_BYTES = 1500
 
 /** 中継（WebSocket は文字列）のためにバイナリを文字列にする */
 export const binToStr = (buf: ArrayBuffer) => {

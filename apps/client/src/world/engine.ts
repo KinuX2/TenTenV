@@ -147,7 +147,7 @@ export class WorldEngine {
     this.session = ctx.session
     this.avatarRef = avatar
     this.voice = new VoiceManager(this.listener)
-    this.screenShare = new ScreenShareManager(this.session)
+    this.screenShare = new ScreenShareManager(this.session, this.listener.context as AudioContext)
     this.player = {
       position: new Vector3(),
       velocity: new Vector3(),

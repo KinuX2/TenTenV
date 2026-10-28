@@ -4,7 +4,7 @@
 // - データチャネルは 2 本（id 0: 信頼性あり・順序あり / id 1: 信頼性なし・順序なし）を最初から決めておく
 // - 音声のトランシーバーも最初から作っておき、マイクを入れたら replaceTrack するだけにする（再交渉しない）
 // - 10 秒たっても P2P が開かなければ、その相手とは中継で話す
-import { BINARY_SCREEN, binaryType, binToStr, ByteBucket, LIMITS, PEER_MESSAGE_LIMIT, RateLimiter, SCREEN_FRAGMENT_BYTES, strToBin, type IceServer, type PeerDescriptor, type PeerMessage, type RelayChannel, type SignalData } from '@tentenv/protocol'
+import { BINARY_SCREEN, BINARY_SCREEN_AUDIO, binaryType, binToStr, ByteBucket, LIMITS, PEER_MESSAGE_LIMIT, RateLimiter, SCREEN_AUDIO_PACKET_BYTES, SCREEN_FRAGMENT_BYTES, strToBin, type IceServer, type PeerDescriptor, type PeerMessage, type RelayChannel, type SignalData } from '@tentenv/protocol'
 import type { SignalClient } from './signaling'
 import { Emitter, type LinkState, type Transport } from './transport'
 
@@ -271,10 +271,12 @@ export class MeshTransport implements Transport {
         // 壊れたメッセージは捨てる
       }
     } else if (ch === 'v') {
-      // 画面共有の映像の断片
+      // 画面共有の映像の断片と、画面共有の音
       if (data.length > Math.ceil((SCREEN_FRAGMENT_BYTES * 4) / 3) + 8) return
       const buf = strToBin(data)
-      if (buf && buf.byteLength <= SCREEN_FRAGMENT_BYTES && binaryType(buf) === BINARY_SCREEN) this.uEv.emit(from, buf)
+      if (!buf) return
+      const type = binaryType(buf)
+      if (type === BINARY_SCREEN ? buf.byteLength <= SCREEN_FRAGMENT_BYTES : type === BINARY_SCREEN_AUDIO && buf.byteLength <= SCREEN_AUDIO_PACKET_BYTES) this.uEv.emit(from, buf)
     } else {
       const buf = strToBin(data)
       if (buf && buf.byteLength <= 2048) this.uEv.emit(from, buf)
@@ -349,6 +351,21 @@ export class MeshTransport implements Transport {
         str ??= binToStr(buf)
         if (!this.relayV.take(str.length)) continue
         this.o.signal.send({ t: 'relay', to: p.desc.peerId, ch: 'v', data: str })
+      }
+      return
+    }
+    if (binaryType(buf) === BINARY_SCREEN_AUDIO) {
+      // 画面共有の音は全員に送る。P2P の相手にはデータチャネル、中継の相手には映像と同じチャンネル（v）で
+      if (buf.byteLength > SCREEN_AUDIO_PACKET_BYTES) return
+      for (const p of targets) {
+        if (p.desc.hidden || p.state === 'lost') continue
+        if (p.u?.readyState === 'open') {
+          if (p.u.bufferedAmount < 64 * 1024) p.u.send(buf)
+        } else if (p.relay) {
+          str ??= binToStr(buf)
+          if (!this.relayV.take(str.length)) continue
+          this.o.signal.send({ t: 'relay', to: p.desc.peerId, ch: 'v', data: str })
+        }
       }
       return
     }

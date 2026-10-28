@@ -1,6 +1,6 @@
-// 画面共有の確認（開発ビルド）: Alice が画面を共有 → 中継でつながる Bob と、後から P2P で入る Carol の両方に映像が届くか
+// 画面共有の確認（開発ビルド）: Alice が画面を共有 → 中継でつながる Bob と、後から P2P で入る Carol の両方に映像と音が届くか
 // 使い方: node tests/e2e/screenshare.mjs [クライアントの URL] [ワールド名] [親サーバー URL]
-// 画面の選択はテストではできないので、getDisplayMedia を「動く絵のキャンバス」の映像に差し替える
+// 画面の選択はテストではできないので、getDisplayMedia を「動く絵のキャンバス」の映像と「発振音」に差し替える
 import { chromium } from 'playwright-core'
 import { prepareTestLogin } from './auth.mjs'
 
@@ -34,7 +34,7 @@ const open = async (name, { blockP2P = false, link } = {}) => {
     })
   // 描画を軽くする（ソフトウェア描画のテスト環境で、映像の符号化が詰まらないように）
   await ctx.addInitScript(() => localStorage.setItem('ttv.settings.v1', JSON.stringify({ quality: 'low', renderScale: 0.5, shadows: false, startMuted: true })))
-  // 共有する「画面」: 色と数字が変わり続けるキャンバス
+  // 共有する「画面」: 色と数字が変わり続けるキャンバスと、440Hz の音
   await ctx.addInitScript(() => {
     navigator.mediaDevices.getDisplayMedia = async () => {
       const c = document.createElement('canvas')
@@ -50,7 +50,15 @@ const open = async (name, { blockP2P = false, link } = {}) => {
         g.font = '64px sans-serif'
         g.fillText(String(n), 40, 200)
       }, 50)
-      return c.captureStream(20)
+      const stream = c.captureStream(20)
+      const ac = new AudioContext()
+      const osc = ac.createOscillator()
+      const dest = ac.createMediaStreamDestination()
+      osc.frequency.value = 440
+      osc.connect(dest)
+      osc.start()
+      stream.addTrack(dest.stream.getAudioTracks()[0])
+      return stream
     }
   })
   const page = await ctx.newPage()
@@ -81,6 +89,35 @@ const received = (page) =>
         setTimeout(() => resolve({ owner, video: true, width: v.videoWidth, height: v.videoHeight, moving: sample() !== a, link: owner ? e.session.t.link(owner) : null }), 4000)
       }),
   )
+
+/** 画面の音が届いているか（受けた音の大きさの最大） */
+const audioLevel = (page) =>
+  page.evaluate(async () => {
+    const e = window.__ttvEngine
+    const stream = e.screenShare.audio()
+    if (!stream) return { audio: false }
+    const ctx = e.listener.context
+    const an = ctx.createAnalyser()
+    ctx.createMediaStreamSource(stream).connect(an)
+    const buf = new Float32Array(an.fftSize)
+    let peak = 0
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 50))
+      an.getFloatTimeDomainData(buf)
+      for (const v of buf) peak = Math.max(peak, Math.abs(v))
+    }
+    return { audio: true, peak: Math.round(peak * 1000) / 1000 }
+  })
+const waitAudio = async (page, ms = 15000) => {
+  const end = Date.now() + ms
+  let r
+  do {
+    r = await audioLevel(page)
+    if (r.audio && r.peak > 0.05) return r
+    await page.waitForTimeout(500)
+  } while (Date.now() < end)
+  return r
+}
 
 /** 映像が届いて動くまで待つ（P2P・中継の切り替えや、同期の受け取りに時間がかかることがある） */
 const waitReceived = async (page, want, ms = 20000) => {
@@ -119,18 +156,23 @@ try {
   await a.evaluate(() => window.__ttvEngine.screenShare.start({ frameRate: 15 }))
   const rb = await waitReceived(b, 'relay')
   check('中継の Bob に共有の映像が届く', rb.video && rb.moving, JSON.stringify(rb))
+  const ab = await waitAudio(b)
+  check('中継の Bob に画面の音が届く', ab.audio && ab.peak > 0.05, JSON.stringify(ab))
 
   // Carol: 共有を始めたあとに P2P で入る（先に入った人の映像が後から入った人に届くか）
   const c = await open('Carol', { link })
   await c.locator('canvas').first().waitFor({ timeout: 30000 })
-  const rc = await waitReceived(c, 'p2p', 30000)
+  // ソフトウェア描画のテスト環境では、後から入った人に最初の映像が出るまで 30 秒以上かかることがある
+  const rc = await waitReceived(c, 'p2p', 60000)
   check('後から P2P で入った Carol に共有の映像が届く', rc.video && rc.moving && rc.link === 'p2p', JSON.stringify(rc))
+  const ac = await waitAudio(c)
+  check('P2P の Carol に画面の音が届く', ac.audio && ac.peak > 0.05, JSON.stringify(ac))
 
   // 共有をやめると、どちらも映像がなくなる
   await a.evaluate(() => window.__ttvEngine.screenShare.stop())
   await a.waitForTimeout(2500)
-  const after = await Promise.all([b, c].map((p) => p.evaluate(() => !!window.__ttvEngine.screenShare.video())))
-  check('共有をやめると映像が消える', after.every((x) => !x), JSON.stringify(after))
+  const after = await Promise.all([b, c].map((p) => p.evaluate(() => !!window.__ttvEngine.screenShare.video() || !!window.__ttvEngine.screenShare.audio())))
+  check('共有をやめると映像と音が消える', after.every((x) => !x), JSON.stringify(after))
   check('ページのエラーがない', errors.length === 0, errors.slice(0, 3).join(' / '))
 } catch (e) {
   console.error('失敗:', e)

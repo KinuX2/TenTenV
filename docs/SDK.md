@@ -335,8 +335,10 @@ const ref = useRef<PickupHandle>(null)
 | `quality` | `1` | 画面の解像度に対する倍率（最大 2048px） |
 | `tint` | `'#c8ccd0'` | 既存ワールド向けの色指定。`color` があればそちらを優先 |
 | `showWorld` | `true` | `false` でアバターだけを映す（軽くなる） |
+| `brightness` | `1` | 明るさの倍率（0〜4）。暗い部屋で鏡が暗く見えるときは 1.2〜1.5 など |
+| `toneMapped` | `true` | `false` で鏡の絵にトーンマップをかけない。ワールドのトーンマップで鏡がくすんで見えるときに使う |
 
-`resolution` と `color` はワールドの React state で変更できます。`resolution` の `[横, 縦]` は鏡の `width / height` と同じ比率にすると映像が伸びません。`resolution` を省略すると、従来どおり画面サイズと `quality` で解像度を決めます。
+`color` は鏡に重ねる色（オーバーレイ）で、明るさの調整には `brightness` を使います。`resolution`・`color`・`brightness`・`toneMapped` はワールドの React state で変更できます（`brightness` と `toneMapped` は鏡を作り直さずに変わります）。`resolution` の `[横, 縦]` は鏡の `width / height` と同じ比率にすると映像が伸びません。`resolution` を省略すると、従来どおり画面サイズと `quality` で解像度を決めます。
 
 ```tsx
 <MirrorSurface width={2.4} height={1.8} resolution={1080} color="#e4f2dc" position={[0, 1.5, -3]} />
@@ -355,6 +357,9 @@ const ref = useRef<PickupHandle>(null)
 | `position` / `rotation` | — | 置き場所 |
 | `defaultUrl` | `''` | 最初に流す URL |
 | `controls` | `true` | 操作パネル（再生・±10 秒・最初から・URL・ループ・音量・ロック） |
+| `controlsPosition` | `'bottom'` | 操作パネルの場所。`'bottom'`（画面の下）・`'top'`（画面の上）か、画面から見た位置 `[x, y, z]` |
+| `controlsRotation` | — | 操作パネルの向き（画面から見た回転、ラジアン） |
+| `controlsScale` | `1` | 操作パネルの大きさの倍率 |
 | `range` | `18` | 聞こえる距離（m） |
 | `volume` | `0.8` | 音量（音量は各自の手元だけで変わる） |
 
@@ -364,6 +369,12 @@ const ref = useRef<PickupHandle>(null)
 - ずれが 0.6 秒を超えると飛び、小さいずれは再生速度を ±4% 変えて合わせます。
 
 同期の状態の形は `MediaState` 型（`url, playing, offset, anchor, loop, lockedBy`）として export しています。
+
+操作パネルを画面から離して、手元の台に置く例です（画面の 1.6m 下・1.2m 手前に、少し上向きで置く）。
+
+```tsx
+<MediaScreen id="theater" width={6} position={[0, 3, -8]} controlsPosition={[0, -3.3, 1.2]} controlsRotation={[-0.6, 0, 0]} controlsScale={0.8} />
+```
 
 ### `<ScreenShareSurface>` / `useScreenShare()`
 
@@ -385,11 +396,15 @@ function SharedStage() {
 }
 ```
 
-`ScreenShareSurface` の `controls` は既定で `true` なので、スクリーンだけ置いても開始・停止ボタンが使えます。`width` の既定は 3.2m、`position`・`rotation`・未共有時の `placeholder` も指定できます。映像は縦横比を維持して表示します。
+`ScreenShareSurface` の `controls` は既定で `true` なので、スクリーンだけ置いても開始・停止ボタンが使えます。`width` の既定は 3.2m、`position`・`rotation`・未共有時の `placeholder` も指定できます。映像は縦横比を維持して表示します。ボタンの場所は `MediaScreen` と同じ `controlsPosition`・`controlsRotation`・`controlsScale` で変えられます。
 
-`useScreenShare()` は `owner`（共有者の `PlayerInfo` または `null`）、`video`（共有映像の `HTMLVideoElement` または `null`）、`isSharing`、`start()`、`stop()` を返します。独自のスクリーンを作る場合は `video` から `VideoTexture` を作れます。`start()` はクリックなどのユーザー操作から直接呼びます。`start({ frameRate: 15 })` のように映像のフレームレート（1〜30、既定 24）を指定できます。画面取得に失敗した場合は Promise が reject されます。ワールドから退出すると共有は終了します。
+画面の音は、スクリーンの位置から立体音響で鳴ります。`audio`（既定 `true`）・`volume`（既定 `1`）・`range`（聞こえる距離、既定 18m）で調整できます。同じ共有を映すスクリーンを複数置くときは、音が重ならないように 1 つ以外を `audio={false}` にしてください。
 
-映像は、P2P でつながっている参加者には WebRTC で、親サーバーの中継でつながっている参加者には WebCodecs（H.264、使えなければ VP8）で符号化して中継で届きます。中継の映像は帯域を抑えるため、最大 1280×720・15 fps 以下で、中継の相手が増えるほど画質が下がります。WebCodecs が使えないブラウザー同士の中継と、開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
+`useScreenShare()` は `owner`（共有者の `PlayerInfo` または `null`）、`video`（共有映像の `HTMLVideoElement` または `null`）、`audio`（共有している画面の音の `MediaStream` または `null`。自分が共有しているときは `null`）、`isSharing`、`start()`、`stop()` を返します。独自のスクリーンを作る場合は `video` から `VideoTexture` を、`audio` から `PositionalAudio` の `setMediaStreamSource` で音を作れます。`start()` はクリックなどのユーザー操作から直接呼びます。`start({ frameRate: 15 })` のように映像のフレームレート（1〜30、既定 24）を指定できます。`start({ audio: false })` で画面の音を送りません。画面取得に失敗した場合は Promise が reject されます。ワールドから退出すると共有は終了します。
+
+映像は、P2P でつながっている参加者には WebRTC で、親サーバーの中継でつながっている参加者には WebCodecs（H.264、使えなければ VP8）で符号化して中継で届きます。中継の映像は帯域を抑えるため、最大 1280×720・15 fps 以下で、中継の相手が増えるほど画質が下がります。WebCodecs が使えないブラウザー同士の中継と、開発用の別タブには映像が届きません。
+
+画面の音は、共有を始めるときにブラウザーの選択画面で「音声も共有する」（タブの音声・システムの音声）を選ぶと送られます。選べる音はブラウザーと OS によって違います（Chrome・Edge では、タブを共有するとタブの音を選べます）。音は 48kHz・ステレオ・64kbps の Opus（WebCodecs）にして、P2P の相手にはデータチャネルで、中継の相手には親サーバーの中継で全員に送ります。映像と別の経路なので、音と映像が少しずれることがあります。共有する人のマイクがスピーカーの音を拾うと、ほかの人には画面の音が二重に聞こえるので、共有する人はヘッドホンを使ってください。画面全体を音声付きで共有すると、ブラウザーによってはボイスチャットの声も入ってしまうので、動画はタブを共有するのがおすすめです。Windows のデスクトップ版は、システムの音にボイスチャットの声が混ざるため、画面の音を送りません（映像だけ）。ブラウザー版では HTTPS または localhost が必要です。
 
 ### `<ImagePanel>`
 

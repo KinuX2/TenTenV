@@ -1,5 +1,6 @@
 import { Emitter } from '../net/transport'
 import { ScreenRelay } from '../net/screenRelay'
+import { ScreenAudio, screenAudioSupported } from '../net/screenAudio'
 import type { InstanceSession } from '../net/session'
 
 export const SCREEN_SHARE_KEY = 'sys:screenShare'
@@ -28,25 +29,36 @@ const relayKey = (peerId: string) => `relay:${peerId}`
 /**
  * One live screen per instance. Capturing always goes through the browser's source picker.
  * P2P でつながっている相手には WebRTC の映像、中継でつながっている相手には ScreenRelay（WebCodecs）で届ける
+ * 画面の音は ScreenAudio（Opus）で全員に届ける
  */
 export class ScreenShareManager {
   private local: MediaStream | null = null
   /** キーは peerId（WebRTC）か relay:peerId（中継） */
   private videos = new Map<string, VideoEntry>()
   private relay: ScreenRelay
+  private sound: ScreenAudio | null = null
+  /** 受けている画面の音（キーは peerId） */
+  private sounds = new Map<string, MediaStream>()
   private changed = new Emitter<[]>()
   private offs: (() => void)[] = []
   private version = 0
   private starting = false
   private disposed = false
 
-  constructor(private session: InstanceSession) {
+  /** audio を渡すと、画面の音も送受信する */
+  constructor(private session: InstanceSession, audio?: AudioContext) {
     this.relay = new ScreenRelay(session, () => this.ownerId(), (peerId, stream) => (stream ? this.attach(relayKey(peerId), stream) : this.detach(relayKey(peerId))))
+    if (audio) this.sound = new ScreenAudio(session, audio, () => this.ownerId(), (peerId, stream) => {
+      if (stream) this.sounds.set(peerId, stream)
+      else this.sounds.delete(peerId)
+      this.emit()
+    })
     this.offs.push(session.subscribe(SCREEN_SHARE_KEY, (value) => {
       if (this.local && (!isScreenShareClaim(value) || value.owner !== session.selfId)) this.stopLocal()
       // 共有している人が変わった・終わったら、中継の受信をやめる
       const owner = isScreenShareClaim(value) ? value.owner : null
       for (const key of [...this.videos.keys()]) if (key.startsWith('relay:') && key !== (owner && relayKey(owner))) this.relay.drop(key.slice('relay:'.length))
+      for (const id of this.sound?.receiving() ?? []) if (id !== owner) this.sound!.drop(id)
       this.emit()
     }))
     this.offs.push(session.t.onRemoteVideo((peerId, stream) => this.attach(peerId, stream)))
@@ -54,6 +66,7 @@ export class ScreenShareManager {
       if (ev.kind === 'leave') {
         this.detach(ev.peerId)
         this.relay.drop(ev.peerId)
+        this.sound?.drop(ev.peerId)
       } else if (ev.kind === 'link') this.emit()
     }))
     this.offs.push(session.membersEv.on(() => this.emit()))
@@ -85,6 +98,12 @@ export class ScreenShareManager {
       if (track?.readyState === 'live' && !track.muted) return entry!.video
     }
     return null
+  }
+
+  /** 共有している人の画面の音（自分が共有しているとき・音がないときは null） */
+  audio = () => {
+    const owner = this.ownerId()
+    return owner && owner !== this.session.selfId ? (this.sounds.get(owner) ?? null) : null
   }
 
   private attach(key: string, stream: MediaStream) {
@@ -128,7 +147,7 @@ export class ScreenShareManager {
     this.emit()
   }
 
-  start = async (options: { frameRate?: number } = {}) => {
+  start = async (options: { frameRate?: number; audio?: boolean } = {}) => {
     if (this.disposed) throw new Error('画面共有は終了しています')
     if (this.local || this.starting) return
     const current = this.ownerId()
@@ -139,7 +158,10 @@ export class ScreenShareManager {
     try {
       // Call directly from the user's click; getDisplayMedia requires transient activation.
       const frameRate = Number.isFinite(options.frameRate) ? Math.max(1, Math.min(30, options.frameRate!)) : 24
-      const stream = await capture.call(navigator.mediaDevices, { video: { frameRate }, audio: false })
+      // 音はブラウザーの選択画面で「音声も共有」を選んだときだけ付く（画面の音を送れない環境では聞かない）
+      // restrictOwnAudio: 画面全体の音から、このタブの音（ボイスチャットの声）を除く（対応していないブラウザーは無視する）
+      const audio = options.audio !== false && !!this.sound && screenAudioSupported()
+      const stream = await capture.call(navigator.mediaDevices, { video: { frameRate }, audio: audio ? { restrictOwnAudio: true } : false, ...(audio ? { systemAudio: 'include' } : {}) } as DisplayMediaStreamOptions)
       const track = stream.getVideoTracks()[0]
       if (!track || this.disposed || (this.ownerId() && this.ownerId() !== this.session.selfId)) {
         stream.getTracks().forEach((t) => t.stop())
@@ -154,6 +176,8 @@ export class ScreenShareManager {
       // 中継でつながっている相手へは WebCodecs で送る（相手がいるあいだだけ符号化する）
       const own = this.videos.get(this.session.selfId)
       if (own) this.relay.startSending(own.video, frameRate)
+      const sound = stream.getAudioTracks()[0]
+      if (sound) void this.sound?.setTrack(sound)
       try {
         this.session.set(SCREEN_SHARE_KEY, { owner: this.session.selfId, startedAt: Date.now() })
         if (this.ownerId() !== this.session.selfId) throw new Error('画面共有を開始できませんでした')
@@ -173,6 +197,7 @@ export class ScreenShareManager {
     this.local = null
     stream.getVideoTracks()[0]?.removeEventListener('ended', this.stop)
     this.relay.stopSending()
+    void this.sound?.setTrack(null)
     this.session.t.setVideoTrack(null)
     this.detach(this.session.selfId)
     stream.getTracks().forEach((t) => t.stop())
@@ -191,6 +216,7 @@ export class ScreenShareManager {
     this.offs.forEach((off) => off())
     this.offs = []
     this.relay.dispose()
+    this.sound?.dispose()
     for (const key of [...this.videos.keys()]) this.detach(key)
   }
 }

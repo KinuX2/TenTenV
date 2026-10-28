@@ -24,6 +24,7 @@ import {
   BINARY_POSE,
   BINARY_VOICE,
   BINARY_SCREEN,
+  BINARY_SCREEN_AUDIO,
   binaryType,
   encodeObjects,
 } from '@tentenv/protocol'
@@ -53,6 +54,7 @@ export interface Member {
     poses: RateLimiter
     voice: RateLimiter
     screen: RateLimiter
+    screenAudio: RateLimiter
     hello: RateLimiter
     avatar: RateLimiter
     expr: RateLimiter
@@ -112,6 +114,8 @@ export class InstanceSession {
   readonly voiceEv = new Emitter<[string, ArrayBuffer]>()
   /** 中継でつながっている相手からの画面共有の映像の断片 */
   readonly screenEv = new Emitter<[string, ArrayBuffer]>()
+  /** 画面共有の音（Opus のパケット） */
+  readonly screenAudioEv = new Emitter<[string, ArrayBuffer]>()
   readonly chatLog: ChatEntry[] = []
   private host: string | null = null
   private epoch = 0
@@ -182,6 +186,8 @@ export class InstanceSession {
           voice: new RateLimiter(140, 2000),
           // 中継の画面共有の映像の断片（16KB まで。250KB/秒 で 16 個/秒ほど）
           screen: new RateLimiter(120, 2000),
+          // 画面共有の音（20ms ごとに 1 つ。50 個/秒）
+          screenAudio: new RateLimiter(150, 2000),
           // 名乗り（つながり直し・チケット更新のときだけ。署名の検証が重い）
           hello: new RateLimiter(10, 10000),
           // アバターの変更（身長のスライダーを動かすと続けて届く。超えた分はあとでまとめて知らせる）
@@ -627,6 +633,8 @@ export class InstanceSession {
       if (m.limits.voice.take()) this.voiceEv.emit(from, buf)
     } else if (type === BINARY_SCREEN) {
       if (m.limits.screen.take()) this.screenEv.emit(from, buf)
+    } else if (type === BINARY_SCREEN_AUDIO) {
+      if (m.limits.screenAudio.take()) this.screenAudioEv.emit(from, buf)
     } else if (type === BINARY_OBJECTS) {
       const d = decodeObjects(buf)
       if (d) this.objectEv.emit(from, this.unwrapTime(d.time), d.list)
