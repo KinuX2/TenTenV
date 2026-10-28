@@ -31,10 +31,12 @@ export const LocalAvatar: React.FC<{ engine: WorldEngine; onEye: (eye: number, m
   const lastSend = useRef(0)
   const look = useRef<[number, number, number] | null>(null)
   const modelRef = useRef<AvatarModel | null>(null)
-  // 触れられた（[43]）: 一瞬うれしい顔にして、手を振るわせる
+  // 触れられた（[43]）: 一瞬うれしい顔にして、手を振るわせる（自分が接触を許している相手だけ）
   useEffect(
     () =>
-      engine.session.touchEv.on((_, part) => {
+      engine.session.touchEv.on((from, part) => {
+        const userId = engine.session.members.get(from)?.desc.user.id
+        if (!userId || !myContactAllows(userId)) return
         const face = (modelRef.current as (AvatarModel & { face?: { react: (n: string) => void } }) | null)?.face
         face?.react(part === 'head' ? 'happy' : 'surprised')
         haptic('left', 0.2 * settings().hapticsStrength, 15)

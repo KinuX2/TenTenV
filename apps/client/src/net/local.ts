@@ -50,6 +50,10 @@ export class LocalTransport implements Transport {
       if (isNew) {
         this.peerEv.emit({ kind: 'join', peerId: w.from.peerId })
         this.peerEv.emit({ kind: 'link', peerId: w.from.peerId })
+      } else if (!w.reply) {
+        // 知っている相手が名乗り直した: 相手はこちらを一度外している（止まっていたタブが戻った）
+        // つながり直したことにして、上の層にも名乗り直してもらう（返事の hello を先に送っているので、相手はもうこちらを知っている）
+        this.peerEv.emit({ kind: 'link', peerId: w.from.peerId })
       }
       return
     }

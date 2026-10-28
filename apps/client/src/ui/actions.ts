@@ -108,7 +108,9 @@ export const actions = {
   avatarAction: (id: string) => {
     const st = useAvatarExt.getState()
     const ext = st.ext
-    if (!ext) return
+    const avatar = useApp.getState().avatar
+    // 着替えた直後は前のアバターの定義が残っていることがある（前のノード名を送らない）
+    if (!ext || avatar.kind !== 'vrm' || st.avatarId !== avatar.id) return
     const action = ext.actions?.find((x) => x.id === id)
     if (action?.kind === 'expression') {
       const p = activeEngine()?.player
@@ -124,7 +126,7 @@ export const actions = {
     }
     st.toggle(id)
     const tokens = outfitTokens(ext, useAvatarExt.getState().active)
-    actions.setAvatar(withOutfits(useApp.getState().avatar, tokens))
+    actions.setAvatar(withOutfits(avatar, tokens))
   },
   muteUser: (userId: string) => useModeration.getState().toggleMute(userId),
   setUserVolume: (userId: string, peerId: string, v: number) => {

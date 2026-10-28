@@ -15,6 +15,7 @@ import { isAvatarMotionState, makeAvatarMotionState, makeTimedAvatarMotion, samp
 import { capturePickupPlacement } from './pickupPlacement'
 import { ScreenShareManager } from './screenShare'
 import { readAvatarBones } from '../avatar/boneReader'
+import { L } from '../i18n'
 
 export interface LocalPlayerState {
   position: Vector3
@@ -493,7 +494,7 @@ export class WorldEngine {
     const key = `sys:seat:${seatId}`
     const cur = this.session.get(key) as string | null | undefined
     if (cur && cur !== this.session.selfId && this.session.isPresent(cur)) {
-      uiBridge.notify('この席にはほかの人が座っています')
+      uiBridge.notify(L('この席にはほかの人が座っています', 'Someone is already sitting here'))
       return
     }
     if (this.player.sitting) this.stand()

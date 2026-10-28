@@ -7,7 +7,7 @@ import { LAYERS } from '@tentenv/sdk'
 import { AvatarView, type AvatarFrame } from '../../avatar/AvatarView'
 import type { AvatarModel } from '../../avatar/types'
 import { describeMeta } from '../../avatar/vrm'
-import { outfitTokens } from '../../state/avatarExt'
+import { canWearAvatar, vrmAvatarRef } from '../../state/avatarExt'
 import { L } from '../../i18n'
 import { DEFAULT_AVATAR, useApp } from '../../state/app'
 import { BUNDLED_AVATARS } from '../../avatar/bundled'
@@ -104,7 +104,7 @@ export const AvatarsTab: React.FC = () => {
   const quota = useAsync(() => api.uploadQuota(), [api])
   const useBuiltin = (id: string) => actions.setAvatar({ ...DEFAULT_AVATAR, id })
   const useVrm = (a: AvatarInfo) => {
-    actions.setAvatar({ kind: 'vrm', id: a.id, url: api.abs(a.fileUrl)!, sha256: a.sha256, scale: 1, outfits: outfitTokens(a.extensions, new Set((a.extensions?.outfits ?? []).filter((o) => o.default).map((o) => o.id))) })
+    actions.setAvatar(vrmAvatarRef(a, (url) => api.abs(url)))
   }
   return (
     <div className="col">
@@ -181,7 +181,7 @@ const AvatarDetail: React.FC<{ a: AvatarInfo; me: string; onUse: () => void; onC
   const ref: AvatarRef = { kind: 'vrm', id: a.id, url: api.abs(a.fileUrl)!, sha256: a.sha256, scale: 1 }
   const lic = a.license
   const mine = a.owner.id === me
-  const canUse = mine || a.allowCloning
+  const canUse = canWearAvatar(a, me)
   return (
     <Modal title={a.name} onClose={onClose} wide>
       <div className="row" style={{ alignItems: 'flex-start' }}>
@@ -273,6 +273,9 @@ const AvatarOwnerTools: React.FC<{ a: AvatarInfo; capture: () => Promise<Blob | 
           <button className="btn small danger" onClick={() => void run(async () => {
             if (!confirm(L('削除しますか？', 'Delete?'))) return
             await api.deleteAvatar(a.id)
+            // 使っているアバターを消したら、標準のアバターに戻す（ほかの人が消えたファイルを読みに行かないように）
+            const now = useApp.getState().avatar
+            if (now.kind === 'vrm' && now.id === a.id) actions.setAvatar(DEFAULT_AVATAR)
             onChanged()
           })}>
             {L('削除', 'Delete')}

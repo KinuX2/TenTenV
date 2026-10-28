@@ -64,6 +64,7 @@ export class VoiceRelay {
   private seq = 0
   private ts = 0
   private offs: (() => void)[] = []
+  private disposed = false
 
   constructor(
     private session: InstanceSession,
@@ -143,6 +144,8 @@ export class VoiceRelay {
 
   private async receive(from: string, buf: ArrayBuffer) {
     if (!(await this.ready) || buf.byteLength < 4 || buf.byteLength > 1500) return
+    // 準備を待つ間に相手が抜けた（または閉じた）なら、受け手を作り直さない
+    if (this.disposed || !this.session.members.get(from)?.verified) return
     let rx = this.rx.get(from)
     if (!rx) {
       const node = new AudioWorkletNode(this.ctx, 'ttv-voice-play', { numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1] })
@@ -200,6 +203,7 @@ export class VoiceRelay {
   }
 
   dispose() {
+    this.disposed = true
     this.offs.forEach((f) => f())
     void this.setMic(null)
     for (const id of [...this.rx.keys()]) this.dropRx(id)

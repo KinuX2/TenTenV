@@ -181,13 +181,15 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
   const [volume, setVolume] = useState(vol0)
   const [status, setStatus] = useState('')
   const height = width * (9 / 16)
+  // video 要素は setMediaElementSource を 1 回しか呼べないので、音の出口（listener）が変わったら作り直す
   const video = useMemo(() => {
     const v = document.createElement('video')
     v.crossOrigin = 'anonymous'
     v.playsInline = true
     v.preload = 'auto'
     return v
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listener])
   const texture = useMemo(() => {
     const t = new VideoTexture(video)
     t.colorSpace = SRGBColorSpace
@@ -196,15 +198,18 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
   const audio = useMemo(() => {
     const a = new PositionalAudio(listener)
     a.setMediaElementSource(video)
-    a.setRefDistance(range / 6)
-    a.setMaxDistance(range)
     a.setRolloffFactor(1.2)
     a.setDistanceModel('linear')
     return a
-  }, [listener, video, range])
+  }, [listener, video])
   useEffect(() => {
     audio.setVolume(volume)
   }, [audio, volume])
+  // 聞こえる距離は作り直さずに変える（作り直すと setMediaElementSource が失敗する）
+  useEffect(() => {
+    audio.setRefDistance(range / 6)
+    audio.setMaxDistance(range)
+  }, [audio, range])
   useEffect(
     () => () => {
       video.pause()
@@ -217,14 +222,14 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
   )
 
   // URL の読み込み（HLS は hls.js を使う）
+  const urlOk = !!st.url && ext.isAllowed(st.url)
   useEffect(() => {
-    if (!st.url) {
+    if (!urlOk) {
+      // 前の動画を止めて外す（残すと、許可されていない URL の状態のまま前の動画が流れ続ける）
+      video.pause()
       video.removeAttribute('src')
-      setStatus('URL が設定されていません')
-      return
-    }
-    if (!ext.isAllowed(st.url)) {
-      setStatus('このドメインの動画は許可されていません')
+      video.load()
+      setStatus(st.url ? 'このドメインの動画は許可されていません' : 'URL が設定されていません')
       return
     }
     let hls: { destroy: () => void } | null = null
@@ -250,24 +255,30 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
       video.removeEventListener('error', onErr)
       video.removeEventListener('canplay', onOk)
     }
-  }, [st.url, video, ext])
+  }, [st.url, urlOk, video, ext])
 
   // 再生位置を共有時計に合わせる
   const lastFix = useRef(0)
   useFrame(() => {
-    if (!st.url) return
+    if (!urlOk) return
     video.loop = st.loop
     const target = st.playing ? st.offset + (clock.now() - st.anchor) / 1000 : st.offset
     const dur = video.duration
-    const t = Number.isFinite(dur) && dur > 0 ? (st.loop ? target % dur : Math.min(target, dur)) : target
-    if (st.playing && video.paused && video.readyState >= 2) void video.play().catch(() => setStatus('画面をクリックすると音が出ます'))
-    if (!st.playing && !video.paused) video.pause()
+    const known = Number.isFinite(dur) && dur > 0
+    const t = known ? (st.loop ? target % dur : Math.min(target, dur)) : target
+    // ループしない動画が終わったら止めたままにする（終わった動画で play() を呼ぶと最初に戻ってしまう）
+    const ended = known && !st.loop && target >= dur
+    const playing = st.playing && !ended
+    if (playing && video.paused && video.readyState >= 2) void video.play().catch(() => setStatus('画面をクリックすると音が出ます'))
+    if (!playing && !video.paused) video.pause()
     const now = performance.now()
     if (video.readyState >= 1 && now - lastFix.current > 1000) {
       lastFix.current = now
       const d = drift(video, t)
-      if (d > 0.6 || (!st.playing && d > 0.05)) video.currentTime = t
-      else if (st.playing) video.playbackRate = d > 0.08 ? (video.currentTime < t ? 1.04 : 0.96) : 1
+      if (ended) {
+        if (!video.ended && d > 0.05) video.currentTime = t
+      } else if (d > 0.6 || (!playing && d > 0.05)) video.currentTime = t
+      else if (playing) video.playbackRate = d > 0.08 ? (video.currentTime < t ? 1.04 : 0.96) : 1
     }
   })
 
@@ -305,7 +316,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
     <group position={position} rotation={rotation}>
       <mesh>
         <planeGeometry args={[width, height]} />
-        {st.url ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshBasicMaterial color="#05060a" />}
+        {urlOk ? <meshBasicMaterial map={texture} toneMapped={false} /> : <meshBasicMaterial color="#05060a" />}
       </mesh>
       <primitive object={audio} />
       {status && <TextPlane text={status} width={width * 0.8} lineHeight={0.09} position={[0, 0, 0.01]} background="#000000aa" />}
@@ -337,12 +348,21 @@ export interface ImagePanelProps {
   position?: Vector3Tuple
   rotation?: Vector3Tuple
 }
+/** 同じオリジンか（前方一致だと https://<クライアント>.example.net/ も通ってしまうので、URL として比べる） */
+const sameOrigin = (url: string) => {
+  try {
+    return new URL(url, location.href).origin === location.origin
+  } catch {
+    return false
+  }
+}
+
 /** 許可されたドメインの画像を出す板 */
 export const ImagePanel: React.FC<ImagePanelProps> = ({ url, width = 1, position, rotation }) => {
   const ext = useExternal()
   const [tex, setTex] = useState<Texture | null>(null)
   useEffect(() => {
-    if (!url || (!ext.isAllowed(url) && !url.startsWith(location.origin) && !url.startsWith('blob:'))) return
+    if (!url || (!ext.isAllowed(url) && !sameOrigin(url) && !url.startsWith('blob:'))) return
     let t: Texture | null = null
     const loader = new TextureLoader()
     loader.setCrossOrigin('anonymous')

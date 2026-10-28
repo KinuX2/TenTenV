@@ -15,7 +15,7 @@ import { useMenu } from '../menuBus'
 import { uiBridge } from '../bridge'
 import { useTools } from '../../features/tools'
 import { bodyTracking } from '../../features/bodyTracking'
-import { useAvatarExt } from '../../state/avatarExt'
+import { canWearAvatar, useAvatarExt, vrmAvatarRef } from '../../state/avatarExt'
 import { SettingsItems } from './settingsItems'
 import { pct, type MenuItem, type MenuTab } from './model'
 import { usePortalPlacement } from '../../world/portalState'
@@ -351,12 +351,14 @@ const FriendsItems: React.FC<PageProps> = ({ engine, vr, close, exitVR, render }
 const AvatarItems: React.FC<PageProps> = ({ render }) => {
   const api = useApp((s) => s.api)
   const current = useApp((s) => s.avatar)
+  const meId = useApp((s) => s.me?.id)
   const mine = useAsync<AvatarInfo[]>(async () => {
     if (!api) return []
     const owned = await api.avatars({ mine: true })
     const favorites = await api.avatars({ favorites: true }).catch(() => [])
-    return [...owned, ...favorites]
-  }, [api])
+    // お気に入りには、作者が他の人の利用を許可していないものもある（ホームの詳細画面と同じく使わせない）
+    return [...owned, ...favorites].filter((a) => canWearAvatar(a, meId))
+  }, [api, meId])
   const seen = new Set<string>()
   const list = (mine.data ?? []).filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)))
   const tiles: Extract<MenuItem, { t: 'tiles' }>['items'] = [
@@ -366,7 +368,7 @@ const AvatarItems: React.FC<PageProps> = ({ render }) => {
       label: a.name,
       icon: { image: a.thumbnailUrl ? (api?.abs(a.thumbnailUrl) ?? null) : null, fallback: 'avatar' },
       on: current.kind === 'vrm' && current.id === a.id,
-      onClick: () => api && actions.setAvatar({ kind: 'vrm', id: a.id, url: api.abs(a.fileUrl)!, sha256: a.sha256, scale: 1 }),
+      onClick: () => api && actions.setAvatar(vrmAvatarRef(a, (url) => api.abs(url))),
     })),
   ]
   tiles.sort((a, b) => a.label.localeCompare(b.label, 'ja', { numeric: true, sensitivity: 'base' }) || a.key.localeCompare(b.key))

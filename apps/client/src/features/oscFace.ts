@@ -197,9 +197,12 @@ const feed = (data: Uint8Array) => {
 /** 設定に合わせて OSC の受け取りを始める・止める。戻り値で止める */
 export const startOscFace = () => {
   let stop: (() => void) | null = null
+  // 止めた後・ポートを変えた後に、前の listen の結果で状態を書き換えないための番号
+  let generation = 0
   const apply = () => {
     stop?.()
     stop = null
+    const gen = ++generation
     raw.clear()
     pending.clear()
     const s = settings()
@@ -213,12 +216,14 @@ export const startOscFace = () => {
     if (nb) {
       // Windows 版: アプリが UDP を受ける
       nb.onPacket(feed)
+      const failed = (error: string) => {
+        if (gen !== generation) return
+        oscState.status = 'error'
+        oscState.error = error
+      }
       nb.listen(s.oscPort).then((r) => {
-        if (!r.ok) {
-          oscState.status = 'error'
-          oscState.error = r.error ?? ''
-        }
-      })
+        if (!r.ok) failed(r.error ?? '')
+      }).catch((e: unknown) => failed(e instanceof Error ? e.message : String(e)))
       stop = () => nb.close()
       return
     }
@@ -255,6 +260,7 @@ export const startOscFace = () => {
   })
   return () => {
     unsub()
+    generation++
     stop?.()
     oscState.status = 'off'
     raw.clear()

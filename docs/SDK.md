@@ -128,24 +128,27 @@ export default function World() {
 
 | ルール名 | 検出するもの |
 |---|---|
-| `no-eval` | `eval()` |
-| `no-new-function` | `new Function(...)`・文字列を渡す `Function(...)` |
+| `no-eval` | `eval()`（`window.eval(`・`eval?.(`・`(0, eval)(`・`["eval"]` の形も） |
+| `no-new-function` | `new Function(...)`・`Function(...)`・関数の `constructor` の呼び出し（`(() => {}).constructor(s)`） |
 | `no-string-timeout` | 文字列を渡す `setTimeout` / `setInterval` |
 | `no-javascript-blob` | JavaScript の Blob の作成 |
-| `no-external-import` | 外部 URL からの `import()` |
-| `no-network-without-permission` | SDK を通さない通信（`fetch(`・`XMLHttpRequest`・`new WebSocket(`・`EventSource`・`sendBeacon`） |
+| `no-worker` | `Worker`・`SharedWorker` の作成、`importScripts`（Worker の中からは自由に通信できるため） |
+| `no-external-import` | 外部 URL（`https://`・`//`）からの `import()` |
+| `no-network-without-permission` | SDK を通さない通信（`fetch(`・`window.fetch(` など・`XMLHttpRequest`・`WebSocket(`・`WebTransport(`・`EventSource`・`sendBeacon`・`new Image().src =`・`window.open(`） |
 | `no-rtc-connection` | `RTCPeerConnection`・`RTCDataChannel` |
 | `no-storage-access` | `localStorage`・`sessionStorage` |
-| `no-cookie-access` | `document.cookie` |
+| `no-cookie-access` | `document.cookie`・`cookieStore` |
 | `no-indexeddb-access` | `indexedDB` |
-| `no-dangerous-dom` | `innerHTML`・`outerHTML` への代入、`insertAdjacentHTML`、`document.write`、`<script>` 要素の作成 |
-| `no-navigator-access` | 位置情報・カメラ・マイク・クリップボード・`credentials`・`serviceWorker`・`getUserMedia` |
+| `no-dangerous-dom` | `innerHTML`・`outerHTML` への代入、`insertAdjacentHTML`、`createContextualFragment`、`document.write`、`script`・`iframe`・`object`・`embed` 要素の作成（大文字も）、`srcdoc` |
+| `no-navigator-access` | 位置情報・カメラ・マイク・クリップボード・`credentials`・`serviceWorker`・`getUserMedia`・`getDisplayMedia`（`navigator["…"]` の形も） |
 | `no-sensitive-api-override` | `window.fetch = ...` などの上書き |
-| `no-global-override` | `window.document`・`location`・`top`・`parent`・`__TTV__` の上書き、`location.href =` |
+| `no-global-override` | `window.document`・`location`・`top`・`parent`・`__TTV__` の上書き、ページの移動（`location = url`・`location.href =`・`location.assign(`・`location.replace(`） |
 | `no-prototype-pollution` | 組み込みのプロトタイプの書き換え、`__proto__ =` |
 | `no-obfuscation` | `\xNN` のエスケープが 400 個を超える（難読化の目安） |
 
 通信が必要なら、ルールを緩めるより `useExternal().fetch` を使ってください（6.7）。
+
+検査は文字列のパターンを見るだけなので、どの書き方でも見つけられるわけではありません。逆に、three.js の `DRACOLoader`・`KTX2Loader` のように Worker を使うライブラリをワールドに同梱すると `no-worker` に当たります。その場合は `relaxedRules` に `no-worker` を書いてください。
 
 ---
 
@@ -159,7 +162,7 @@ export default function World() {
 | `ttv-world check` | `dist/world.js` の静的検査だけをする |
 | `ttv-world pack [-o out.ttvw] [--no-build]` | ビルドして `.ttvw`（zip）を作る。`-o` がなければ `<name>.ttvw`（英数字以外は `_` になるので、日本語の名前なら `-o` で指定するのがおすすめ） |
 | `ttv-world upload --server <URL> [--token <t>] [--world <ID>] [--no-build]` | ビルドして親サーバーへ登録する。`--world` を付けるとそのワールドの新しい版として更新する |
-| `ttv-world dev [--port 5180] [--client http://localhost:5190]` | 変更を見張ってビルドし続け、`http://localhost:<port>/` でワールドを配信する。クライアントで開く URL を表示する |
+| `ttv-world dev [--port 5180] [--host 0.0.0.0] [--client http://localhost:5190]` | 変更を見張ってビルドし続け、`http://localhost:<port>/` でワールドを配信する。クライアントで開く URL を表示する。既定ではこの PC の中（`127.0.0.1`・`::1`）からだけ開ける。ほかの機器から試すときは `--host 0.0.0.0` |
 
 `upload` のトークンは、クライアントの「設定 → アカウント・サーバー → 制作者向け」でコピーできるセッショントークンです。環境変数 `TTV_TOKEN` でも渡せます。人に教えないでください。
 
@@ -357,7 +360,7 @@ const ref = useRef<PickupHandle>(null)
 
 - URL は `https://` の直接のファイル（mp4・webm）か HLS（`.m3u8`）で、CORS（ほかのサイトから読み込むことの許可）に対応している必要があります。YouTube などの埋め込み専用の動画は再生できません。
 - ドメインは `permissions.allowedDomains` に書くか、ワールドと同じ親サーバーのファイル（インスタンス共有ファイルなど）を使います。
-- 「ロック」すると、ロックした人とインスタンスの作成者・モデレーターだけが操作できます。ロックした人がいなくなると誰でも操作できます。
+- 「ロック」すると、ロックした人とインスタンスの作成者・モデレーターだけが操作パネルを使えます。ロックした人がいなくなると誰でも操作できます。ロックは操作パネルでの制限で、状態はふつうの同期状態（`w:media:<id>`）なので、改造したクライアントなどからの書き換えまでは防げません。
 - ずれが 0.6 秒を超えると飛び、小さいずれは再生速度を ±4% 変えて合わせます。
 
 同期の状態の形は `MediaState` 型（`url, playing, offset, anchor, loop, lockedBy`）として export しています。
@@ -418,7 +421,7 @@ function SharedStage() {
 
 | props | 既定値 | 説明 |
 |---|---|---|
-| `src` | （必須） | `public/` のファイル名か、`http(s)://` の URL |
+| `src` | （必須） | `public/` のファイル名か、`http(s)://` の URL（外部の URL は `allowedDomains` のドメインだけ。6.7） |
 | `position` | — | 置き場所 |
 | `volume` | `0.6` | 音量 |
 | `loop` | `true` | くり返す |
@@ -659,7 +662,7 @@ const files = useInstanceFiles()
 - クライアントと同じオリジン、親サーバーのオリジン、ワールドのファイルの URL
 - 利用者が設定で「許可されていないドメインの動画・画像も読み込む」をオンにしているときの `https://` の URL
 
-`<SpatialSound>` は今の版では許可の確認をせずに URL を読み込みます。外部の音を使うときも `allowedDomains` に書いておいてください。
+`<SpatialSound>`・`<MediaScreen>`・`<ImagePanel>` も同じ確認をし、許可されていない URL は読み込みません（`<ImagePanel>` は `blob:` の URL も読み込みます）。外部の音・動画・画像を使うときは `allowedDomains` に書いておいてください。
 
 ### 6.8 ダイアログ
 

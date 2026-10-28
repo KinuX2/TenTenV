@@ -28,18 +28,25 @@ export interface WorldBuildOptions {
 }
 
 /** ビルド後に、ワールドの入口の形を world.js に書き足す */
-const finalize = (): Plugin => ({
-  name: 'tentenv-world-finalize',
-  apply: 'build',
-  closeBundle() {
-    const file = resolve('dist', 'world.js')
-    if (!existsSync(file)) return
-    const code = readFileSync(file, 'utf8')
-    if (code.includes('__ttvRegister')) return
-    // IIFE の戻り値（export の一覧）をクライアントへ渡す
-    writeFileSync(file, `${code}\n;(function(){var m=typeof __ttvWorld!=="undefined"?__ttvWorld:null;if(window.__ttvRegister&&m)window.__ttvRegister(m)})();\n`)
-  },
-})
+const finalize = (): Plugin => {
+  // vite.build.outDir や root を変えたワールドでも見つけられるように、Vite が決めた出力先を使う
+  let outDir = resolve('dist')
+  return {
+    name: 'tentenv-world-finalize',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir)
+    },
+    closeBundle() {
+      const file = resolve(outDir, 'world.js')
+      if (!existsSync(file)) return
+      const code = readFileSync(file, 'utf8')
+      if (code.includes('__ttvRegister')) return
+      // IIFE の戻り値（export の一覧）をクライアントへ渡す
+      writeFileSync(file, `${code}\n;(function(){var m=typeof __ttvWorld!=="undefined"?__ttvWorld:null;if(window.__ttvRegister&&m)window.__ttvRegister(m)})();\n`)
+    },
+  }
+}
 
 export const defineWorldConfig = (opts: WorldBuildOptions = {}): UserConfig => {
   const entry = opts.entry ?? 'src/index.tsx'

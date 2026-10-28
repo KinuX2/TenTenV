@@ -86,10 +86,19 @@ export const useNetClock = (opts: NetClockOptions = {}) => {
 }
 const clockKey = (c: ClockState) => `${c.synced ? 1 : 0}:${Math.round(c.uncertainty / 25)}:${c.jumps}`
 
-/** インスタンスにいる人の一覧（入退室で更新） */
+/** インスタンスにいる人の一覧（入退室・名前・役割・端末などの変化で更新） */
 export const usePlayers = () => {
   const rt = useRuntime()
-  const version = useSyncExternalStore(rt.onPlayers, () => playersKey(rt.players()), () => playersKey(rt.players()))
+  // 自分の端末（VR に入ったなど）の変化は onDeviceChange で届く
+  const subscribe = useCallback((cb: () => void) => {
+    const a = rt.onPlayers(cb)
+    const b = rt.onDeviceChange(cb)
+    return () => {
+      a()
+      b()
+    }
+  }, [rt])
+  const version = useSyncExternalStore(subscribe, () => playersKey(rt.players()), () => playersKey(rt.players()))
   return useMemo(() => {
     const all = rt.players()
     const local = all.find((p) => p.isLocal) ?? rt.self()
@@ -106,7 +115,9 @@ export const usePlayers = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt, version])
 }
-const playersKey = (list: PlayerInfo[]) => list.map((p) => `${p.peerId}:${p.isHost ? 1 : 0}:${p.displayName}`).join('|')
+// PlayerInfo のどれかが変わったら作り直す（キーに入れないと all / others が古いままになる）
+const playersKey = (list: PlayerInfo[]) =>
+  JSON.stringify(list.map((p) => [p.peerId, p.userId, p.isHost, p.isLocal, p.isGuest, p.role, p.device, p.iconUrl, p.displayName]))
 
 /** 自分がホスト（同期の取りまとめ役）か。ホストだけが動かすギミックに使う */
 export const useIsHost = () => {

@@ -46,7 +46,19 @@ export interface Member {
   expr: { weights: Record<string, number>; gesture: [HandGesture, HandGesture] }
   typing: boolean
   lastSeen: number
-  limits: { state: RateLimiter; events: RateLimiter; chat: RateLimiter; poses: RateLimiter; voice: RateLimiter; screen: RateLimiter }
+  limits: {
+    state: RateLimiter
+    events: RateLimiter
+    chat: RateLimiter
+    poses: RateLimiter
+    voice: RateLimiter
+    screen: RateLimiter
+    hello: RateLimiter
+    avatar: RateLimiter
+    expr: RateLimiter
+    typing: RateLimiter
+    touch: RateLimiter
+  }
 }
 
 export interface ChatEntry {
@@ -111,6 +123,12 @@ export class InstanceSession {
   private allowContact: 'everyone' | 'friends' | 'nobody'
   private hostScore: number
   private seq = 0
+  /** 名乗りの検証中に届いたメッセージ（検証が済んでから順に処理する） */
+  private holding = new Map<string, unknown[]>()
+  /** レート制限で遅らせたアバターの変更の知らせ */
+  private avatarTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** 相手ごとに最後に触れたことを送った時刻 */
+  private touchSent = new Map<string, number>()
   /** 自分の情報（チケットの中身） */
   readonly selfTicket: TicketPayload | null
   /** 同期状態を受け取ったか（ホストからの一覧が届くまで false） */
@@ -164,6 +182,16 @@ export class InstanceSession {
           voice: new RateLimiter(140, 2000),
           // 中継の画面共有の映像の断片（16KB まで。250KB/秒 で 16 個/秒ほど）
           screen: new RateLimiter(120, 2000),
+          // 名乗り（つながり直し・チケット更新のときだけ。署名の検証が重い）
+          hello: new RateLimiter(10, 10000),
+          // アバターの変更（身長のスライダーを動かすと続けて届く。超えた分はあとでまとめて知らせる）
+          avatar: new RateLimiter(10, 5000),
+          // 表情（送り手は変わったときだけ 0.1 秒おき）
+          expr: new RateLimiter(30, 2000),
+          // 入力中の表示（変わったときだけ数える）
+          typing: new RateLimiter(20, 10000),
+          // 触れられた（送り手は相手ごとに 0.1 秒おき）
+          touch: new RateLimiter(20, 2000),
         },
       }
       this.members.set(desc.peerId, m)
@@ -178,7 +206,7 @@ export class InstanceSession {
     } else if (ev.kind === 'link') {
       this.sendHello(ev.peerId)
     } else {
-      this.members.delete(ev.peerId)
+      this.forget(ev.peerId)
       // 抜けた人が持っていた操作中の物などは、同期状態の側で扱う（持ち主がいなければホストへ）
     }
     this.electHost()
@@ -200,17 +228,39 @@ export class InstanceSession {
     this.t.sendR(to, { t: 'expr', weights: this.myExpr.weights, gesture: this.myExpr.gesture })
   }
 
+  private forget(peerId: string) {
+    this.members.delete(peerId)
+    this.holding.delete(peerId)
+    this.touchSent.delete(peerId)
+    const timer = this.avatarTimers.get(peerId)
+    if (timer) clearTimeout(timer)
+    this.avatarTimers.delete(peerId)
+  }
+
   private async onHello(m: Member, msg: Extract<PeerMessage, { t: 'hello' }>) {
-    const was = m.verified
+    const id = m.desc.peerId
     if (this.o.serverKey) {
+      // 検証を待つ間に届いたもの（ホストの同期状態の一覧など）は捨てずに取っておく
+      this.holding.set(id, [])
       const payload = await verifyTicket(msg.ticket, this.o.serverKey)
+      const held = this.holding.get(id) ?? []
+      this.holding.delete(id)
+      if (this.members.get(id) !== m) return
       // チケットはこの親サーバー・このインスタンス・この接続のものでなければならない
-      if (!payload || payload.iid !== this.o.instanceId || payload.pid !== m.desc.peerId || (this.o.serverId && payload.sid !== this.o.serverId) || payload.exp < Date.now() - 60000) {
-        console.warn('[session] チケットが不正なので無視します', m.desc.peerId)
-        return
+      if (!payload || payload.iid !== this.o.instanceId || payload.pid !== id || (this.o.serverId && payload.sid !== this.o.serverId) || payload.exp < Date.now() - 60000) {
+        console.warn('[session] チケットが不正なので無視します', id)
+      } else {
+        m.ticket = payload
+        this.acceptHello(m, msg)
       }
-      m.ticket = payload
+      for (const raw of held) this.onMessage(id, raw)
+      return
     }
+    this.acceptHello(m, msg)
+  }
+
+  private acceptHello(m: Member, msg: Extract<PeerMessage, { t: 'hello' }>) {
+    const was = m.verified
     m.verified = true
     m.avatar = sanitizeAvatar(msg.avatar)
     m.allowContact = msg.allowContact === true || msg.allowContact === 'everyone' ? 'everyone' : msg.allowContact === 'friends' ? 'friends' : 'nobody'
@@ -336,16 +386,19 @@ export class InstanceSession {
       if (parts.length !== 2) return 'Invalid screen share key'
       const current = this.state.get(key)?.value
       const activeOwner = isScreenShareClaim(current) ? current.owner : null
-      if (value === null) return !activeOwner || activeOwner === by || isMod || !this.isPresent(activeOwner) ? null : 'Cannot stop another player’s screen share'
+      // ホストが替わった直後は、まだ名乗りを確かめていない共有中の人もいる。接続の一覧にいるあいだは居るものとして扱う
+      const sharing = !!activeOwner && (this.isPresent(activeOwner) || this.isListed(activeOwner))
+      if (value === null) return !activeOwner || activeOwner === by || isMod || !sharing ? null : 'Cannot stop another player’s screen share'
       if (!isScreenShareClaim(value) || value.owner !== by) return 'Invalid screen share claim'
-      if (activeOwner && activeOwner !== by && this.isPresent(activeOwner)) return 'Another player is sharing a screen'
+      if (activeOwner && activeOwner !== by && sharing) return 'Another player is sharing a screen'
       return null
     }
     if (kind === 'avatarMotion') {
       if (parts.length !== 3 || !owner) return 'Invalid avatar motion key'
       if (owner !== by && !(value === null && (isMod || !this.isPresent(owner)))) return 'Cannot change another player’s avatar motion'
       if (value === null) return null
-      if (!isAvatarMotionState(value) || Math.abs(value.startedAt - Date.now()) > 300_000) return 'Invalid avatar motion'
+      // startedAt は共有時計の時刻（ホストの端末の時計ではない）
+      if (!isAvatarMotionState(value) || Math.abs(value.startedAt - this.clock.now()) > 300_000) return 'Invalid avatar motion'
       return null
     }
     if (kind === 'portal') {
@@ -400,6 +453,10 @@ export class InstanceSession {
   isPresent(peerId: string | null | undefined) {
     if (!peerId) return false
     return peerId === this.selfId || (this.members.get(peerId)?.verified ?? false)
+  }
+  /** 接続の一覧（親サーバーが知らせた相手）にいて、つながりが切れていない */
+  private isListed(peerId: string) {
+    return this.members.has(peerId) && this.t.link(peerId) !== 'lost'
   }
 
   private notifyState(key: string, value: unknown, by: string) {
@@ -518,6 +575,10 @@ export class InstanceSession {
     this.t.sendR('*', { t: 'expr', weights, gesture })
   }
   sendTouch(peerId: string, part: string, strength: number) {
+    // 触れている間は毎フレーム呼ばれるので、相手ごとに 0.1 秒おきにする
+    const now = Date.now()
+    if (now - (this.touchSent.get(peerId) ?? 0) < 100) return
+    this.touchSent.set(peerId, now)
     this.t.sendR(peerId, { t: 'touch', part, strength })
   }
 
@@ -557,8 +618,11 @@ export class InstanceSession {
         if (frames.length && frames[frames.length - 1].t - t > 3000) frames.length = 0
         else return
       }
+      // VR に入った・出たときは、端末の種類が変わったことを知らせる
+      const vrChanged = !!frames.length && (frames[frames.length - 1].f.flags & 1) !== (f.flags & 1)
       frames.push({ t, f })
       while (frames.length > 2 && frames[0].t < t - 2000) frames.shift()
+      if (vrChanged) this.membersEv.emit()
     } else if (type === BINARY_VOICE) {
       if (m.limits.voice.take()) this.voiceEv.emit(from, buf)
     } else if (type === BINARY_SCREEN) {
@@ -577,8 +641,14 @@ export class InstanceSession {
     const m = this.members.get(from)
     if (!m) return
     m.lastSeen = Date.now()
+    // 名乗りの検証中: 済んでから順に処理する（ためすぎたら捨てる）
+    const held = this.holding.get(from)
+    if (held) {
+      if (held.length < 256) held.push(raw)
+      return
+    }
     if (msg.t === 'hello') {
-      void this.onHello(m, msg)
+      if (m.limits.hello.take()) void this.onHello(m, msg)
       return
     }
     // 名乗る前のメッセージは受け付けない
@@ -586,9 +656,10 @@ export class InstanceSession {
     switch (msg.t) {
       case 'avatar':
         m.avatar = sanitizeAvatar(msg.avatar)
-        this.avatarEv.emit(from)
+        this.notifyAvatar(m)
         break
       case 'expr': {
+        if (!m.limits.expr.take()) return
         if (!msg.weights || typeof msg.weights !== 'object' || !Array.isArray(msg.gesture)) return
         const w: Record<string, number> = {}
         for (const [k, v] of Object.entries(msg.weights).slice(0, 64)) if (typeof v === 'number' && Number.isFinite(v) && k.length < 64) w[k] = Math.max(0, Math.min(1, v))
@@ -602,6 +673,8 @@ export class InstanceSession {
         this.pushChat({ id: String(msg.id).slice(0, 64), from, name: m.desc.user.displayName, text: msg.text.slice(0, LIMITS.chatLength), at: Date.now(), self: false })
         break
       case 'typing':
+        // 変わったときだけ知らせる（入力のたびに届く）
+        if (m.typing === !!msg.on || !m.limits.typing.take()) return
         m.typing = !!msg.on
         this.membersEv.emit()
         break
@@ -660,11 +733,29 @@ export class InstanceSession {
         if (from === this.host && this.clock.source === 'host') this.clock.addSample(Number(msg.c), Number(msg.h))
         break
       case 'touch':
-        if (typeof msg.part === 'string') this.touchEv.emit(from, msg.part.slice(0, 32), Math.max(0, Math.min(1, Number(msg.strength) || 0)))
+        // 接触を許しているかは受け手（touchEv の側）でも確かめる
+        if (typeof msg.part === 'string' && m.limits.touch.take()) this.touchEv.emit(from, msg.part.slice(0, 32), Math.max(0, Math.min(1, Number(msg.strength) || 0)))
         break
       case 'bye':
         break
     }
+  }
+
+  /** アバターが変わったことを知らせる。続けて届いたときは、1 秒あとに最新のものをまとめて知らせる */
+  private notifyAvatar(m: Member) {
+    const id = m.desc.peerId
+    if (this.avatarTimers.has(id)) return
+    if (m.limits.avatar.take()) {
+      this.avatarEv.emit(id)
+      return
+    }
+    this.avatarTimers.set(
+      id,
+      setTimeout(() => {
+        this.avatarTimers.delete(id)
+        if (this.members.get(id) === m) this.avatarEv.emit(id)
+      }, 1000),
+    )
   }
 
   // ---------------- 時計 ----------------
@@ -694,7 +785,7 @@ export class InstanceSession {
     const now = Date.now()
     for (const [id, m] of this.members) {
       if (this.t.link(id) === 'lost' && now - m.lastSeen > 15000) {
-        this.members.delete(id)
+        this.forget(id)
         this.electHost()
         if (this.isHost() && this.state.has(`sys:avatarMotion:${id}`)) this.set(`sys:avatarMotion:${id}`, null)
         if (this.isHost() && (this.get(SCREEN_SHARE_KEY) as { owner?: string } | undefined)?.owner === id) this.set(SCREEN_SHARE_KEY, null)
@@ -710,6 +801,8 @@ export class InstanceSession {
       // 閉じる途中
     }
     if (this.hostClockTimer) clearInterval(this.hostClockTimer)
+    for (const timer of this.avatarTimers.values()) clearTimeout(timer)
+    this.avatarTimers.clear()
     this.offs.forEach((f) => f())
     this.t.close()
   }
