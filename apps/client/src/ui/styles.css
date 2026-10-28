@@ -69,7 +69,7 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 6px 0; width: 
 .connect-card { width: min(460px, 100%); display: grid; gap: 14px; }
 .shared-world-wrap { width: min(820px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 72px; }
 .shared-world-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; font-size: 19px; font-weight: 800; }
-.shared-world-brand img { width: 32px; height: 32px; }
+.shared-world-brand img { width: 32px; height: 32px; flex: none; object-fit: contain; }
 .shared-world-card { padding: 0; overflow: hidden; }
 .shared-world-image { min-height: 270px; aspect-ratio: 16 / 7; display: grid; place-items: center; background: var(--bg2) center / cover no-repeat; color: var(--sub); }
 .shared-world-content { display: grid; gap: 13px; padding: 25px; }
@@ -77,8 +77,13 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 6px 0; width: 
 .shared-world-content p { margin: 0; white-space: pre-wrap; line-height: 1.7; }
 .shared-world-actions { display: grid; justify-items: start; gap: 10px; margin-top: 9px; padding-top: 19px; border-top: 1px solid var(--line); }
 @media (max-width: 600px) { .shared-world-wrap { padding-top: 20px; } .shared-world-image { min-height: 170px; } .shared-world-content { padding: 18px; } }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 26px; letter-spacing: .02em; }
-.brand img { width: 40px; height: 40px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 26px; letter-spacing: .02em; overflow-wrap: anywhere; }
+.brand img { width: 40px; height: 40px; flex: none; object-fit: contain; }
+.brand-wide { min-width: 0; }
+.brand-wide img { width: min(100%, 280px); height: auto; max-height: 110px; object-fit: contain; object-position: left center; }
+.brand-wide .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.side .brand-wide img { width: 100%; max-height: 90px; }
+.shared-world-brand.brand-wide img { width: min(100%, 320px); max-height: 120px; }
 .home { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
 .side { background: var(--bg); border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow: auto; }
 .side .nav { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; cursor: pointer; color: var(--sub); border: none; background: none; text-align: left; width: 100%; }
@@ -102,7 +107,7 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 6px 0; width: 
 @media (max-width: 760px) {
   .home { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .mobile-top { display: flex; align-items: center; gap: 8px; padding: max(8px, env(safe-area-inset-top)) 12px 8px; background: var(--bg); border-bottom: 1px solid var(--line); position: relative; z-index: 2; }
-  .mobile-title { flex: 1; font-weight: 700; font-size: 17px; }
+  .mobile-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: 17px; }
   .icon-btn { width: 42px; height: 42px; padding: 0; position: relative; }
   .menu-dot { position: absolute; top: 8px; right: 8px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); }
   .drawer-backdrop { display: block; position: fixed; inset: 0; background: #0009; z-index: 40; animation: fadein .15s; }
@@ -112,6 +117,9 @@ hr.sep { border: none; border-top: 1px solid var(--line); margin: 6px 0; width: 
   .main > .col > h1:first-child, .main h1 { font-size: 20px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .hero { aspect-ratio: 16/9; }
+}
+@media (max-width: 600px) {
+  .world-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---- ワールドの中の画面 ---- */

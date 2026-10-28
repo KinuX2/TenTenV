@@ -5,9 +5,10 @@ import { useFrame } from '@react-three/fiber'
 import { useRapier } from '@react-three/rapier'
 import { objectHash, type ObjectPose } from '@tentenv/protocol'
 import { useEffect, useRef } from 'react'
-import { Box3, Matrix4, Object3D, Quaternion, Vector3 } from 'three'
+import { Box3, Quaternion, Vector3 } from 'three'
 import { xrInput } from '../player/xrInput'
 import type { PickupEntry, WorldEngine } from './engine'
+import { readPickupPlacement, setPickupWorldPlacement } from './pickupPlacement'
 
 interface Body {
   setBodyType: (t: number, wake: boolean) => void
@@ -26,29 +27,12 @@ interface Body {
   userData: unknown
 }
 
-const _m = new Matrix4()
-const _s = new Vector3()
-
-const setWorld = (o: Object3D, p: Vector3, q: Quaternion) => {
-  const parent = o.parent
-  const scale = o.scale.clone()
-  if (parent) {
-    parent.updateWorldMatrix(true, false)
-    _m.compose(p, q, _s.set(1, 1, 1)).premultiply(parent.matrixWorld.clone().invert())
-    _m.decompose(o.position, o.quaternion, _s)
-  } else {
-    o.position.copy(p)
-    o.quaternion.copy(q)
-  }
-  o.scale.copy(scale)
-  o.updateMatrixWorld(true)
-}
-
 export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
   const { world, rapier } = useRapier()
   const bodies = useRef(new Map<string, Body>())
   const sendAcc = useRef(0)
   const quietSent = useRef(new Map<string, number>())
+  const appliedState = useRef(new WeakMap<PickupEntry, { ref: unknown; value: string }>())
 
   // 受け取った位置
   useEffect(
@@ -59,6 +43,8 @@ export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
             if (objectHash(pk.id) !== op.hash) continue
             const owner = ownerOf(engine, pk)
             if (owner !== from) continue
+            const state = engine.session.get(`sys:pick:${pk.id}`) as { holder?: string | null; pose?: unknown } | undefined
+            if (!pk.spec().physics && state?.holder === null && state.pose) continue
             pk.net.push({ t: time, p: new Vector3(op.p.x, op.p.y, op.p.z), q: new Quaternion(op.q.x, op.q.y, op.q.z, op.q.w), vel: new Vector3(op.vel.x, op.vel.y, op.vel.z) })
             pk.net.sort((a, b) => a.t - b.t)
             while (pk.net.length > 12) pk.net.shift()
@@ -132,13 +118,47 @@ export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
       }
     }
     for (const pk of engine.pickups.values()) {
+      const state = s.get(`sys:pick:${pk.id}`) as { pose?: unknown; reset?: unknown } | undefined
+      const previous = appliedState.current.get(pk)
+      let changed = false
+      if (previous?.ref !== state) {
+        const value = JSON.stringify(state) ?? ''
+        changed = previous?.value !== value
+        appliedState.current.set(pk, { ref: state, value })
+      }
+      let placement = null as ReturnType<typeof readPickupPlacement>
+      if (changed) {
+        pk.net.length = 0
+        placement = readPickupPlacement(state?.pose)
+        if (placement) {
+          const p = new Vector3(...placement.p)
+          const q = new Quaternion(...placement.q)
+          setPickupWorldPlacement(pk.obj, p, q)
+          if (state?.reset === true) {
+            for (const hand of ['left', 'right', 'desktop'] as const) if (engine.held[hand] === pk.id) engine.held[hand] = null
+            engine.setPickupUsing(pk, false)
+            pk.hand = null
+            pk.grabOffset = null
+            pk.home.p.copy(p)
+            pk.home.q.copy(q)
+          }
+        }
+      }
       const body = ensureBody(pk)
+      if (placement && body) {
+        body.setTranslation(new Vector3(...placement.p), true)
+        body.setRotation(new Quaternion(...placement.q), true)
+        if (state?.reset === true) {
+          body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+          body.setAngvel({ x: 0, y: 0, z: 0 }, true)
+        }
+      }
       const owner = ownerOf(engine, pk)
       const mine = owner === me
       const heldHand = (['left', 'right', 'desktop'] as const).find((h) => engine.held[h] === pk.id)
       const ext = pk as PickupEntry & { throwVel?: Vector3; desktopTarget?: Vector3; resetTo?: { p: Vector3; q: Quaternion } }
       if (ext.resetTo && mine) {
-        setWorld(pk.obj, ext.resetTo.p, ext.resetTo.q)
+        setPickupWorldPlacement(pk.obj, ext.resetTo.p, ext.resetTo.q)
         if (body) {
           body.setTranslation(ext.resetTo.p, true)
           body.setRotation(ext.resetTo.q, true)
@@ -158,7 +178,7 @@ export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
           hp = hi.gripP.clone().add(pk.grabOffset.p.clone().applyQuaternion(hi.gripQ))
           hq = hi.gripQ.clone().multiply(pk.grabOffset.q)
         }
-        setWorld(pk.obj, hp, hq)
+        setPickupWorldPlacement(pk.obj, hp, hq)
         if (body) {
           if (body.bodyType() !== 2) body.setBodyType(2, true) // 2: kinematicPositionBased
           body.setNextKinematicTranslation(hp)
@@ -180,7 +200,7 @@ export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
           const r = body.rotation()
           const p = new Vector3(t.x, t.y, t.z)
           const q = new Quaternion(r.x, r.y, r.z, r.w)
-          setWorld(pk.obj, p, q)
+          setPickupWorldPlacement(pk.obj, p, q)
           // 落ちすぎたら元の場所へ
           if (t.y < -60) {
             body.setTranslation(pk.home.p, true)
@@ -221,7 +241,7 @@ export const PickupSystem: React.FC<{ engine: WorldEngine }> = ({ engine }) => {
           q = a.q.clone().slerp(b.q, k)
         }
       }
-      setWorld(pk.obj, p, q)
+      setPickupWorldPlacement(pk.obj, p, q)
       if (body) {
         body.setNextKinematicTranslation(p)
         body.setNextKinematicRotation(q)

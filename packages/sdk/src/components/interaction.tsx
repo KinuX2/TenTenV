@@ -48,6 +48,7 @@ export interface PickupProps extends Omit<GroupProps, 'id'> {
   onGrab?: (by: PlayerInfo) => void
   onDrop?: (by: PlayerInfo) => void
   onUse?: (by: PlayerInfo) => void
+  onUseChange?: (pressed: boolean, by: PlayerInfo) => void
 }
 
 /**
@@ -55,13 +56,13 @@ export interface PickupProps extends Omit<GroupProps, 'id'> {
  * physics を付けると、離したときに落ちたり投げたりできる
  */
 export const Pickup = forwardRef<PickupHandle, PickupProps>(function Pickup(
-  { id, label, physics = true, orientation = 'keep', throwable = true, onGrab, onDrop, onUse, children, ...rest },
+  { id, label, physics = true, orientation = 'keep', throwable = true, onGrab, onDrop, onUse, onUseChange, children, ...rest },
   handleRef,
 ) {
   const rt = useRuntime()
   const ref = useRef<Group>(null)
   const spec = useRef<PickupSpec>({ id, physics, orientation, throwable })
-  spec.current = { id, label, physics, orientation, throwable, onGrab, onDrop, onUse }
+  spec.current = { id, label, physics, orientation, throwable, onGrab, onDrop, onUse, onUseChange }
   const handle = useRef<(PickupHandle & { dispose: () => void }) | null>(null)
   useEffect(() => {
     if (!ref.current) return
@@ -74,6 +75,7 @@ export const Pickup = forwardRef<PickupHandle, PickupProps>(function Pickup(
   }, [rt, id])
   useImperativeHandle(handleRef, () => ({
     holder: () => handle.current?.holder() ?? null,
+    isUsing: () => handle.current?.isUsing() ?? false,
     drop: () => handle.current?.drop(),
     reset: (p, q) => handle.current?.reset(p, q),
   }))

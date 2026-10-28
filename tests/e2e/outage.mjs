@@ -3,6 +3,7 @@
 // 注意: ポート 8787 の親サーバーを止めて、同じデータで起動し直す
 import { chromium } from 'playwright-core'
 import { execSync, spawn } from 'node:child_process'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = 'テンプレートワールド'
@@ -18,11 +19,9 @@ const check = (label, cond, detail = '') => {
 }
 const open = async (name, link) => {
   const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } })
+  await prepareTestLogin(ctx, name, link ?? CLIENT)
   const page = await ctx.newPage()
   await page.goto(link ?? CLIENT)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!link) await page.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return page
 }

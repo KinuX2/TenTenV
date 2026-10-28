@@ -1,6 +1,6 @@
 // 押す・つかむ（[118][122]）。PC は画面の中心、スマホはタップした所、VR は手のレイと指先
 import { useFrame, useThree } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Box3, BufferGeometry, Line, LineBasicMaterial, Mesh, MeshBasicMaterial, Object3D, Quaternion, Raycaster, SphereGeometry, Vector2, Vector3 } from 'three'
 import { create } from 'zustand'
 import { LAYERS } from '@tentenv/sdk'
@@ -10,6 +10,7 @@ import type { Interactable, PickupEntry, WorldEngine } from './engine'
 import { useMenu } from '../ui/menuBus'
 import { input } from '../player/input'
 import { usePortalPlacement } from './portalState'
+import { capturePickupPlacement } from './pickupPlacement'
 
 export interface HoverState {
   label: string | null
@@ -57,6 +58,10 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
   const desktopDist = useRef(1.2)
   const desktopHoldStart = useRef(0)
 
+  useEffect(() => () => {
+    for (const pk of engine.pickups.values()) engine.setPickupUsing(pk, false)
+  }, [engine])
+
   const cast = (origin: Vector3, dir: Vector3, maxDist: number): Hit | null => {
     ray.set(origin, dir)
     ray.far = maxDist
@@ -94,7 +99,12 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
       return
     }
     // 反対の手で持っていたら持ち替える
-    for (const h of ['left', 'right', 'desktop'] as Hand[]) if (engine.held[h] === pk.id) engine.held[h] = null
+    for (const h of ['left', 'right', 'desktop'] as Hand[]) {
+      if (engine.held[h] === pk.id) {
+        engine.setPickupUsing(pk, false)
+        engine.held[h] = null
+      }
+    }
     engine.held[hand] = pk.id
     pk.hand = hand
     pk.obj.updateWorldMatrix(true, false)
@@ -116,8 +126,9 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
   const release = (hand: Hand) => {
     const id = engine.held[hand]
     if (!id) return
-    engine.held[hand] = null
     const pk = engine.pickups.get(id)
+    if (pk) engine.setPickupUsing(pk, false)
+    engine.held[hand] = null
     if (!pk) return
     pk.hand = null
     pk.grabOffset = null
@@ -133,13 +144,18 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
       if (vel.length() > 25) vel.setLength(25)
     }
     ;(pk as PickupEntry & { throwVel?: Vector3 }).throwVel = vel
-    engine.session.set(`sys:pick:${pk.id}`, { holder: null, owner: engine.session.selfId })
+    engine.session.set(`sys:pick:${pk.id}`, spec.physics
+      ? { holder: null, owner: engine.session.selfId }
+      : { holder: null, owner: engine.session.selfId, pose: capturePickupPlacement(pk.obj) })
     spec.onDrop?.(engine.selfInfo())
     useHover.setState({ holding: null })
   }
 
   useFrame(() => {
     if (usePortalPlacement.getState().target) {
+      for (const pk of engine.pickups.values()) engine.setPickupUsing(pk, false)
+      pendingUse.value = false
+      pendingUse.held = false
       lasers.left.holder.visible = lasers.right.holder.visible = false
       const hover = useHover.getState()
       if (hover.label || hover.kind || hover.holding) useHover.setState({ label: null, kind: null, holding: null })
@@ -151,7 +167,16 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
     let hoverKind: 'click' | 'pickup' | null = null
     const xr = p.vr
 
+    for (const pk of engine.pickups.values()) {
+      const hand = pk.hand
+      if (pk.using && (!hand || engine.held[hand] !== pk.id || menuOpen || (xr ? hand === 'desktop' || !xrInput[hand].connected : hand !== 'desktop'))) {
+        engine.setPickupUsing(pk, false)
+      }
+    }
+
     if (xr) {
+      pendingUse.value = false
+      pendingUse.held = false
       for (const h of ['left', 'right'] as const) {
         const hi = xrInput[h]
         const laser = lasers[h]
@@ -188,9 +213,12 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
           hoverPrev.current.get(h)?.spec().onHover?.(false)
           hoverPrev.current.set(h, null)
         }
+        if (heldId && !menuOpen) {
+          const pk = engine.pickups.get(heldId)
+          if (pk) engine.setPickupUsing(pk, hi.triggerHeld || hi.triggerDown, hi.triggerDown)
+        }
         if (hi.triggerDown && !menuOpen) {
-          if (heldId) engine.pickups.get(heldId)?.spec().onUse?.(engine.selfInfo())
-          else if (hit?.kind === 'click') {
+          if (!heldId && hit?.kind === 'click') {
             click(hit.target as Interactable, h, hit.point)
             haptic(h, 0.35 * settings().hapticsStrength, 20)
           }
@@ -271,14 +299,18 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
           desktopHoldStart.current = performance.now()
         }
       }
-      if (pendingUse.value) {
-        pendingUse.value = false
-        if (heldId) engine.pickups.get(heldId)?.spec().onUse?.(engine.selfInfo())
+      const useDown = pendingUse.value
+      const usePressed = useDown || pendingUse.held
+      pendingUse.value = false
+      pendingUse.held = false
+      if (heldId && engine.held.desktop === heldId && !menuOpen) {
+        const pk = engine.pickups.get(heldId)
+        if (pk) engine.setPickupUsing(pk, usePressed, useDown)
       }
       desktopDist.current = Math.max(0.5, Math.min(4, desktopDist.current - pendingWheel.value * 0.15))
       pendingWheel.value = 0
       // 持っている物は視点の前へ
-      if (heldId) {
+      if (heldId && engine.held.desktop === heldId) {
         const pk = engine.pickups.get(heldId)
         if (pk) {
           const target = camera.getWorldPosition(new Vector3()).add(dir.clone().multiplyScalar(desktopDist.current))
@@ -300,7 +332,7 @@ export const InteractionSystem: React.FC<{ engine: WorldEngine }> = ({ engine })
 export const pendingClick = { value: false }
 export const pendingTap: { value: { x: number; y: number } | null } = { value: null }
 export const pendingGrab = { value: false }
-export const pendingUse = { value: false }
+export const pendingUse = { value: false, held: false }
 export const pendingWheel = { value: 0 }
 
 const visibleInScene = (o: Object3D) => {

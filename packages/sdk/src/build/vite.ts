@@ -69,6 +69,7 @@ export const defineWorldConfig = (opts: WorldBuildOptions = {}): UserConfig => {
         external: Object.keys(SHARED_MODULES),
         output: {
           globals: SHARED_MODULES,
+          exports: 'named',
         },
       },
     },
@@ -78,6 +79,7 @@ export const defineWorldConfig = (opts: WorldBuildOptions = {}): UserConfig => {
     ...base,
     ...extra,
     plugins: [...(base.plugins ?? []), ...(extra.plugins ?? [])],
+    define: { ...base.define, ...extra.define },
     build: { ...base.build, ...extra.build, lib: base.build!.lib, rollupOptions: { ...base.build!.rollupOptions, ...extra.build?.rollupOptions } },
   }
 }

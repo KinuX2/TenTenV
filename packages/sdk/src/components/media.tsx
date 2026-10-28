@@ -1,8 +1,8 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, DoubleSide, type Camera, Color, Mesh, type MeshBasicMaterial, PlaneGeometry, PositionalAudio, SRGBColorSpace, TextureLoader, VideoTexture, type Texture, type Vector3Tuple } from 'three'
+import { AdditiveBlending, DoubleSide, type Camera, Color, LinearFilter, Mesh, type MeshBasicMaterial, PlaneGeometry, PositionalAudio, SRGBColorSpace, TextureLoader, VideoTexture, type Texture, type Vector3Tuple } from 'three'
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
-import { useAudioListener, useNetClock, useSyncedState, useDialogs, useExternal, useNavigation } from '../hooks'
+import { useAudioListener, useNetClock, useSyncedState, useDialogs, useExternal, useNavigation, useScreenShare } from '../hooks'
 import { useRuntime } from '../runtime'
 import { Clickable, TriggerZone } from './interaction'
 import { TextPlane } from './TextPlane'
@@ -29,23 +29,33 @@ export interface MirrorSurfaceProps {
   height?: number
   position?: Vector3Tuple
   rotation?: Vector3Tuple
+  /** Exact render texture size. A number sets the vertical pixels and preserves the mirror's aspect ratio. */
+  resolution?: number | [number, number]
+  /** Reflection color. Accepts CSS colors or a numeric RGB value. */
+  color?: string | number
   /** 解像度の倍率（画面の解像度に対して） */
   quality?: number
+  /** Alias kept for existing worlds. */
   tint?: string
   /** ワールドの物も映すか（false ならアバターだけ） */
   showWorld?: boolean
 }
 
 /** 鏡。アバターは三人称の見た目（自分の頭も）で映る */
-export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height = 2, position, rotation, quality = 1, tint = '#c8ccd0', showWorld = true }) => {
+export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height = 2, position, rotation, resolution, color, quality = 1, tint = '#c8ccd0', showWorld = true }) => {
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
+  const explicitWidth = Array.isArray(resolution) ? resolution[0] : null
+  const explicitHeight = Array.isArray(resolution) ? resolution[1] : typeof resolution === 'number' ? resolution : null
   const mirror = useMemo(() => {
+    const clampPixels = (value: number, max = 4096) => Math.max(64, Math.min(max, Math.round(Number.isFinite(value) ? value : 64)))
+    const textureWidth = explicitHeight === null ? clampPixels(size.width * dpr * quality, 2048) : clampPixels(explicitWidth ?? explicitHeight * width / Math.max(0.01, height))
+    const textureHeight = explicitHeight === null ? clampPixels(size.height * dpr * quality, 2048) : clampPixels(explicitHeight)
     const r = new Reflector(new PlaneGeometry(width, height), {
       clipBias: 0.003,
-      textureWidth: Math.min(2048, Math.round(size.width * dpr * quality)),
-      textureHeight: Math.min(2048, Math.round(size.height * dpr * quality)),
-      color: new Color(tint),
+      textureWidth,
+      textureHeight,
+      color: new Color(color ?? tint),
     })
     // 鏡のカメラは元のカメラを複製して作られる。そのときにレイヤーを鏡用に変える
     const rr = r as unknown as { getReflectionCamera: (c: Camera) => Camera }
@@ -59,9 +69,75 @@ export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height 
       return cam
     }
     return r
-  }, [width, height, quality, tint, showWorld, size.width, size.height, dpr])
-  useEffect(() => () => mirror.dispose(), [mirror])
+  }, [width, height, quality, tint, color, showWorld, size.width, size.height, dpr, explicitWidth, explicitHeight])
+  useEffect(() => () => {
+    mirror.dispose()
+    mirror.geometry.dispose()
+  }, [mirror])
   return <primitive object={mirror} position={position} rotation={rotation} />
+}
+
+// ---------- ScreenShareSurface ----------
+
+export interface ScreenShareSurfaceProps {
+  width?: number
+  position?: Vector3Tuple
+  rotation?: Vector3Tuple
+  /** Add an in-world start/stop button. */
+  controls?: boolean
+  placeholder?: string
+}
+
+/** A live screen in the world. Multiple surfaces show the same active share. */
+export const ScreenShareSurface: React.FC<ScreenShareSurfaceProps> = ({ width = 3.2, position, rotation, controls = true, placeholder = '画面共有なし' }) => {
+  const { owner, video, isSharing, start, stop } = useScreenShare()
+  const { notify } = useDialogs()
+  const height = width * 9 / 16
+  const [aspect, setAspect] = useState(16 / 9)
+  useEffect(() => {
+    if (!video) return
+    const update = () => setAspect(video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : 16 / 9)
+    update()
+    video.addEventListener('loadedmetadata', update)
+    video.addEventListener('resize', update)
+    return () => {
+      video.removeEventListener('loadedmetadata', update)
+      video.removeEventListener('resize', update)
+    }
+  }, [video])
+  const texture = useMemo(() => {
+    if (!video) return null
+    const t = new VideoTexture(video)
+    t.colorSpace = SRGBColorSpace
+    t.minFilter = LinearFilter
+    t.magFilter = LinearFilter
+    t.generateMipmaps = false
+    return t
+  }, [video])
+  useEffect(() => () => texture?.dispose(), [texture])
+  const imageWidth = aspect >= 16 / 9 ? width : height * aspect
+  const imageHeight = aspect >= 16 / 9 ? width / aspect : height
+  const action = () => {
+    if (isSharing) stop()
+    else void start().catch((error: unknown) => {
+      if (error instanceof Error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) return
+      notify(error instanceof Error ? error.message : '画面共有を開始できません')
+    })
+  }
+  return <group position={position} rotation={rotation}>
+    <mesh>
+      <planeGeometry args={[width, height]} />
+      <meshBasicMaterial color="#0b1211" side={DoubleSide} />
+    </mesh>
+    {texture ? <mesh position={[0, 0, 0.002]}>
+      <planeGeometry args={[imageWidth, imageHeight]} />
+      <meshBasicMaterial map={texture} toneMapped={false} side={DoubleSide} />
+    </mesh> : <TextPlane text={owner ? `${owner.displayName} の画面を待っています` : placeholder} width={width * 0.8} lineHeight={0.16} position={[0, 0, 0.003]} color="#c3d0c5" />}
+    {controls && (!owner || isSharing) && <Clickable label={isSharing ? '画面共有を停止' : '画面を共有'} onClick={action} position={[0, -height / 2 - 0.17, 0]}>
+      <mesh><boxGeometry args={[Math.min(width * 0.55, 1.5), 0.22, 0.04]} /><meshStandardMaterial color="#3d713b" /></mesh>
+      <TextPlane text={isSharing ? '共有を停止' : '画面を共有'} width={Math.min(width * 0.5, 1.4)} lineHeight={0.12} position={[0, 0, 0.025]} />
+    </Clickable>}
+  </group>
 }
 
 // ---------- MediaScreen ----------

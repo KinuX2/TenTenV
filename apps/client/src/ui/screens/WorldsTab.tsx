@@ -40,7 +40,7 @@ export const WorldsTab: React.FC = () => {
       {friendsInstances.length > 0 && (
         <div className="col">
           <div className="section-title">{L('フレンドがいる場所', 'Where your friends are')}</div>
-          <div className="grid">
+          <div className="grid world-grid">
             {friendsInstances.map((i) => (
               <InstanceCard key={i.id} inst={i} />
             ))}
@@ -62,7 +62,7 @@ export const WorldsTab: React.FC = () => {
       </div>
       {list.error && <div className="err">{list.error}</div>}
       {list.data && list.data.length === 0 && <Empty>{L('ワールドが見つかりません。「制作」からワールドを登録できます。', 'No worlds found. You can upload one from "Create".')}</Empty>}
-      <div className="grid">
+      <div className="grid world-grid">
         {list.data?.map((w) => (
           <WorldTile key={w.id} w={w} onClick={() => setOpen(w.id)} />
         ))}

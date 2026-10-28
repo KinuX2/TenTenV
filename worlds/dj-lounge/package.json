@@ -14,7 +14,7 @@
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@react-three/rapier": "^2.2.0",
-    "@tentenv/sdk": "0.1.0",
+    "@tentenv/sdk": "0.1.1",
     "@types/react": "^19.2.0",
     "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.2",

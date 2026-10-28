@@ -55,7 +55,11 @@ export class LocalTransport implements Transport {
     }
     if (w.k === 'bye') return this.drop(w.from)
     const p = this.known.get(w.from)
-    if (!p) return
+    if (!p) {
+      // A tab may resume after its heartbeat timed out. Ask it to exchange descriptors again.
+      if (w.k === 'beat' && w.from !== this.selfId) this.post({ k: 'hello', from: this.self, reply: false })
+      return
+    }
     p.seen = Date.now()
     if (w.k === 'beat') return
     if (w.to !== '*' && w.to !== this.selfId) return
@@ -88,6 +92,12 @@ export class LocalTransport implements Transport {
     // 開発用では音声を送らない
   }
   onRemoteAudio() {
+    return () => {}
+  }
+  setVideoTrack() {
+    // BroadcastChannel cannot transfer a live MediaStreamTrack between tabs.
+  }
+  onRemoteVideo() {
     return () => {}
   }
   serverUp() {

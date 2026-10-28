@@ -3,6 +3,7 @@
 import { createContext, useContext } from 'react'
 import type { AudioListener, Object3D, Vector3Tuple } from 'three'
 import type { InstanceInfo, SharedFileInfo, WorldInfo, WorldSummary } from '@tentenv/protocol'
+import type { AvatarMotionApi } from './motion'
 
 export type DeviceKind = 'desktop' | 'mobile' | 'vr'
 export type Unsubscribe = () => void
@@ -62,11 +63,15 @@ export interface PickupSpec {
   onDrop?: (by: PlayerInfo) => void
   /** つかんでいる人がトリガー（使う）を押したとき */
   onUse?: (by: PlayerInfo) => void
+  /** 持ったまま「使う」を押した／離したとき。手放した場合も false が届く */
+  onUseChange?: (pressed: boolean, by: PlayerInfo) => void
 }
 
 export interface PickupHandle {
   /** 今つかんでいる人（peerId） */
   holder: () => string | null
+  /** この端末で持っている物の「使う」が押されているか */
+  isUsing: () => boolean
   drop: () => void
   /** 位置を全員で合わせ直す */
   reset: (position: Vector3Tuple, quaternion?: [number, number, number, number]) => void
@@ -153,6 +158,18 @@ export interface MediaApi {
   fetch: (url: string, init?: RequestInit) => Promise<Response>
 }
 
+export interface ScreenShareApi {
+  /** Call directly from a user action; the browser asks which screen or window to share. */
+  start: (options?: { frameRate?: number }) => Promise<void>
+  stop: () => void
+  isSharing: () => boolean
+  ownerId: () => string | null
+  /** The live video element for the active share, or null when unavailable. */
+  video: () => HTMLVideoElement | null
+  onChange: (cb: () => void) => Unsubscribe
+  revision: () => number
+}
+
 export interface WorldRuntime {
   /** ワールドのファイルの基準 URL（末尾 /） */
   baseUrl: string
@@ -168,6 +185,7 @@ export interface WorldRuntime {
   players: () => PlayerInfo[]
   onPlayers: (cb: () => void) => Unsubscribe
   pose: (peerId: string) => PlayerPose | null
+  avatar: AvatarMotionApi
   hostId: () => string | null
   onHost: (cb: () => void) => Unsubscribe
   state: {
@@ -205,6 +223,7 @@ export interface WorldRuntime {
   files: InstanceFilesApi
   store: WorldStoreApi
   media: MediaApi
+  screenShare: ScreenShareApi
   pickFile: (req: FileRequest) => void
   confirm: (req: ConfirmRequest) => Promise<boolean>
   prompt: (req: PromptRequest) => Promise<string | null>

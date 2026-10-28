@@ -136,6 +136,9 @@ export const useTeleport = () => {
   return useMemo(() => ({ teleport: rt.teleport, respawn: rt.respawn }), [rt])
 }
 
+/** Animate the local player's avatar from a world component. */
+export const useAvatarMotion = () => useRuntime().avatar
+
 export const useNavigation = () => {
   const rt = useRuntime()
   return useMemo(() => ({ openWorld: rt.openWorld, openInstance: rt.openInstance, getWorldInfo: rt.getWorldInfo, getInstanceInfo: rt.getInstanceInfo, listWorlds: rt.listWorlds }), [rt])
@@ -160,6 +163,23 @@ export const useDialogs = () => {
 
 /** 許可されたドメインへの通信と、URL が許可されているかの確認 */
 export const useExternal = () => useRuntime().media
+
+/** Screen capture state and controls for this instance. Call start directly from a click. */
+export const useScreenShare = () => {
+  const rt = useRuntime()
+  const share = rt.screenShare
+  const revision = useSyncExternalStore(share.onChange, share.revision, share.revision)
+  return useMemo(() => {
+    const ownerId = share.ownerId()
+    return {
+      owner: ownerId ? rt.players().find((p) => p.peerId === ownerId) ?? null : null,
+      video: share.video(),
+      isSharing: share.isSharing(),
+      start: share.start,
+      stop: share.stop,
+    }
+  }, [rt, share, revision])
+}
 
 /** カメラについている AudioListener（ワールドの立体音響はこれにつなぐ） */
 export const useAudioListener = (): AudioListener => useRuntime().audioListener()

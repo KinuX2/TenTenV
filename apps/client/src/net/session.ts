@@ -29,6 +29,8 @@ import {
 import { SharedClock } from './clock'
 import { verifyTicket } from './ticket'
 import { Emitter, type Transport } from './transport'
+import { isAvatarMotionState } from '../avatar/worldMotion'
+import { isScreenShareClaim, SCREEN_SHARE_KEY } from '../world/screenShare'
 
 export interface Member {
   desc: PeerDescriptor
@@ -175,6 +177,8 @@ export class InstanceSession {
       // 抜けた人が持っていた操作中の物などは、同期状態の側で扱う（持ち主がいなければホストへ）
     }
     this.electHost()
+    if (ev.kind === 'leave' && this.isHost() && this.state.has(`sys:avatarMotion:${ev.peerId}`)) this.set(`sys:avatarMotion:${ev.peerId}`, null)
+    if (ev.kind === 'leave' && this.isHost() && (this.get(SCREEN_SHARE_KEY) as { owner?: string } | undefined)?.owner === ev.peerId) this.set(SCREEN_SHARE_KEY, null)
     this.membersEv.emit()
   }
 
@@ -323,6 +327,22 @@ export class InstanceSession {
     const parts = key.split(':')
     const kind = parts[1]
     const owner = parts[2]
+    if (kind === 'screenShare') {
+      if (parts.length !== 2) return 'Invalid screen share key'
+      const current = this.state.get(key)?.value
+      const activeOwner = isScreenShareClaim(current) ? current.owner : null
+      if (value === null) return !activeOwner || activeOwner === by || isMod || !this.isPresent(activeOwner) ? null : 'Cannot stop another player’s screen share'
+      if (!isScreenShareClaim(value) || value.owner !== by) return 'Invalid screen share claim'
+      if (activeOwner && activeOwner !== by && this.isPresent(activeOwner)) return 'Another player is sharing a screen'
+      return null
+    }
+    if (kind === 'avatarMotion') {
+      if (parts.length !== 3 || !owner) return 'Invalid avatar motion key'
+      if (owner !== by && !(value === null && (isMod || !this.isPresent(owner)))) return 'Cannot change another player’s avatar motion'
+      if (value === null) return null
+      if (!isAvatarMotionState(value) || Math.abs(value.startedAt - Date.now()) > 300_000) return 'Invalid avatar motion'
+      return null
+    }
     if (kind === 'portal') {
       if (value === null) return owner === by || isMod || !this.isPresent(owner) ? null : '他人のポータルは消せません'
       if (owner !== by) return '他人のポータルは変更できません'
@@ -355,9 +375,17 @@ export class InstanceSession {
       return 'その席にはほかの人が座っています'
     }
     if (kind === 'pick') {
-      const v = value as { holder?: unknown; owner?: unknown } | null
+      const v = value as { holder?: unknown; owner?: unknown; pose?: unknown; reset?: unknown } | null
       if (v === null) return null
       if (typeof v !== 'object' || (v.holder !== null && v.holder !== by) || v.owner !== by) return '持ち主の情報が不正'
+      if (v.pose !== undefined) {
+        const pose = v.pose as { p?: unknown; q?: unknown } | null
+        if (v.holder !== null || !pose || typeof pose !== 'object' ||
+          !Array.isArray(pose.p) || pose.p.length !== 3 || pose.p.some((n) => typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 10000) ||
+          !Array.isArray(pose.q) || pose.q.length !== 4 || pose.q.some((n) => typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 1.001) ||
+          Math.abs(pose.q.reduce((sum: number, n: number) => sum + n * n, 0) - 1) > 0.1) return '持てる物の位置が不正'
+      }
+      if (v.reset !== undefined && (v.reset !== true || v.pose === undefined)) return '持てる物のリセット情報が不正'
       return null
     }
     if (kind === 'world') return isMod ? null : 'インスタンスの管理者だけが変えられます'
@@ -661,6 +689,8 @@ export class InstanceSession {
       if (this.t.link(id) === 'lost' && now - m.lastSeen > 15000) {
         this.members.delete(id)
         this.electHost()
+        if (this.isHost() && this.state.has(`sys:avatarMotion:${id}`)) this.set(`sys:avatarMotion:${id}`, null)
+        if (this.isHost() && (this.get(SCREEN_SHARE_KEY) as { owner?: string } | undefined)?.owner === id) this.set(SCREEN_SHARE_KEY, null)
         this.membersEv.emit()
       }
     }

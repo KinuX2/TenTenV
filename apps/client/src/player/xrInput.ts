@@ -5,6 +5,7 @@ export interface HandInput {
   connected: boolean
   handTracking: boolean
   trigger: number
+  triggerHeld: boolean
   triggerDown: boolean
   triggerUp: boolean
   squeeze: number
@@ -31,6 +32,7 @@ const make = (): HandInput => ({
   connected: false,
   handTracking: false,
   trigger: 0,
+  triggerHeld: false,
   triggerDown: false,
   triggerUp: false,
   squeeze: 0,

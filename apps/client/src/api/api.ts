@@ -126,7 +126,6 @@ export class Api {
 
   // ---- サーバー・認証 ----
   info = () => this.req<ServerInfo>('GET', '/api/info')
-  guest = (displayName: string) => this.req<{ token: string; me: MeInfo }>('POST', '/api/auth/guest', { displayName })
   misskeyStart = (host: string, callback: string) => this.req<{ url: string; session: string }>('POST', '/api/auth/misskey/start', { host, callback })
   misskeyFinish = (session: string) => this.req<{ token: string; me: MeInfo }>('POST', '/api/auth/misskey/finish', { session })
   logout = () => this.req<void>('POST', '/api/auth/logout')

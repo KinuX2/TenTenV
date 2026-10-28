@@ -1,6 +1,7 @@
 // 鏡の確認（開発ビルド用）: フェイスミラー・パーソナルミラーを持って動かす
 // 使い方: node tests/e2e/mirrors.mjs [クライアントの URL] [出力の頭]
 import { chromium } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const OUT = process.argv[3] ?? 'tests/e2e/out-mirrors'
@@ -17,16 +18,12 @@ const check = (label, cond, detail = '') => {
 }
 try {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 } })
+  await prepareTestLogin(ctx, 'Mirror', CLIENT, SERVER)
   await ctx.addInitScript(() => { Object.defineProperty(navigator, 'xr', { value: undefined, configurable: true }) })
   const p = await ctx.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(CLIENT)
-  const serverField = p.getByPlaceholder('https://example.com')
-  if (await serverField.count()) await serverField.fill(SERVER)
-  await p.getByRole('button', { name: /接続|Connect/ }).click()
-  await p.getByPlaceholder(/表示名|Display name/).fill('Mirror')
-  await p.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   await p.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   await p.getByText('ホーム', { exact: true }).first().click()
   await p.getByRole('button', { name: /作って入る|Create & join/ }).click()

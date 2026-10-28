@@ -551,7 +551,7 @@ export const MenuPanel: React.FC<MenuPanelProps> = ({ engine, vr, close, exitVR,
   const keyboardVisible = !!kb || (dialog && dialogs[0]?.kind === 'prompt')
   const accountBadge = <Container flexDirection="row" alignItems="center" gap={8} paddingX={12} paddingY={8} borderRadius={12} backgroundColor={C.card}>
     <Container width={8} height={8} borderRadius={4} backgroundColor={C.accent} />
-    <T size={12}>{me?.displayName ?? L('ゲスト', 'Guest')}</T>
+    <T size={12}>{me?.displayName ?? L('プレイヤー', 'Player')}</T>
   </Container>
   const body = kb ? (
     <Keyboard req={{ ...kb, onDone: (t) => (setKb(null), kb.onDone(t)) }} />

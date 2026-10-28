@@ -336,7 +336,7 @@ const Landing: React.FC = () => {
                   <Icon name="key" size={22} />
                   {L('ログインを選べる', 'Pick your sign-in')}
                 </h3>
-                <p>{L('Misskey のアカウントでログイン（パスワードは受け取りません）。ゲストの入室も設定で切り替えられます。', 'Sign in with Misskey (no passwords are collected). Guest access is a config switch.')}</p>
+                <p>{L('Misskey のアカウントでログインします。パスワードは受け取りません。', 'Sign in with a Misskey account. Your password is not collected.')}</p>
               </div>
               <div className="card">
                 <h3>

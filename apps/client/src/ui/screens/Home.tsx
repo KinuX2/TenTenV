@@ -12,6 +12,7 @@ import { NotificationsTab, ProfileTab } from './ProfileTab'
 import { WorldDetail, WorldsTab } from './WorldsTab'
 import { goToWorld } from '../join'
 import { Icon } from '../icons'
+import { Brand, brandingOf, fallbackLogoOnError } from '../Brand'
 
 const AvatarsTab = lazy(() => import('./AvatarsTab').then((m) => ({ default: m.AvatarsTab })))
 
@@ -22,6 +23,8 @@ export const Home: React.FC = () => {
   const me = useApp((s) => s.me)!
   const screen = useApp((s) => s.screen)
   const info = useApp((s) => s.info)
+  const api = useApp((s) => s.api)
+  const brand = brandingOf(info, api?.base ?? null)
   const notes = useApp((s) => s.notifications)
   const online = useNet((s) => s.online)
   const friends = useNet((s) => s.friends)
@@ -62,14 +65,11 @@ export const Home: React.FC = () => {
           {(unread > 0 || onlineFriends > 0) && <span className="menu-dot" />}
         </button>
         <div className="mobile-title">{L(...(nav.find((n) => n[0] === tab)!.slice(2, 4) as [string, string]))}</div>
-        <img src="/icon.svg" alt="TenTenV" style={{ width: 28, height: 28 }} />
+        <img src={brand.logo} alt={brand.name} style={brand.layout === 'wide' ? { width: 112, height: 42, objectFit: 'contain' } : { width: 28, height: 28 }} onError={(e) => fallbackLogoOnError(e.currentTarget)} />
       </header>
       {drawer && <div className="drawer-backdrop" onClick={() => setDrawer(false)} />}
       <aside className={`side${drawer ? ' open' : ''}`}>
-        <div className="brand server-box" style={{ fontSize: 20, padding: '4px 10px 12px' }}>
-          <img src="/icon.svg" alt="" style={{ width: 30, height: 30 }} />
-          TenTenV
-        </div>
+        <Brand info={info} server={api?.base ?? null} className="brand server-box" logoSize={30} style={{ fontSize: 20, padding: brand.layout === 'wide' ? '4px 2px 12px' : '4px 10px 12px' }} />
         {nav.map(([id, icon, ja, en, badge]) => (
           <button key={id} className={`nav${tab === id ? ' on' : ''}`} onClick={() => go(id)}>
             <Icon name={icon} size={20} />

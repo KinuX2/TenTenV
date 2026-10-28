@@ -21,6 +21,8 @@ export interface InputFrame {
   interactHeld: boolean
   /** 持っている物を使う */
   use: boolean
+  /** 「使う」を押している間 */
+  useHeld: boolean
   /** つかむ・離す（PC: G） */
   grabToggle: boolean
   /** 持っている物の距離（マウスホイール） */
@@ -39,7 +41,7 @@ export interface InputFrame {
 
 const empty = (): InputFrame => ({
   moveX: 0, moveY: 0, lookYaw: 0, lookPitch: 0, run: false, jump: false, up: 0,
-  crouchToggle: false, proneToggle: false, interact: false, interactHeld: false, use: false, grabToggle: false,
+  crouchToggle: false, proneToggle: false, interact: false, interactHeld: false, use: false, useHeld: false, grabToggle: false,
   holdDistance: 0, menu: false, chat: false, ptt: false, muteToggle: false, tap: null, gesture: null,
   respawn: false, thirdPersonToggle: false,
 })
@@ -53,6 +55,7 @@ class InputManager {
   private clicked = false
   private mouseHeld = false
   private rightClicked = false
+  private rightMouseHeld = false
   private tap: { x: number; y: number } | null = null
   /** タッチの仮想スティック（-1〜1） */
   stick = { x: 0, y: 0 }
@@ -76,7 +79,11 @@ class InputManager {
       if (['Space', 'Tab'].includes(e.code) && document.pointerLockElement) e.preventDefault()
     })
     window.addEventListener('keyup', (e) => this.keys.delete(e.code))
-    window.addEventListener('blur', () => this.keys.clear())
+    window.addEventListener('blur', () => {
+      this.keys.clear()
+      this.rightMouseHeld = false
+      this.mouseHeld = false
+    })
     window.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement === this.canvas) {
         this.mouseDX += e.movementX
@@ -89,10 +96,20 @@ class InputManager {
         this.clicked = true
         this.mouseHeld = true
       }
-      if (e.button === 2) this.rightClicked = true
+      if (e.button === 2) {
+        this.rightClicked = true
+        this.rightMouseHeld = true
+      }
     })
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.mouseHeld = false
+      if (e.button === 2) this.rightMouseHeld = false
+    })
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement !== this.canvas) {
+        this.mouseHeld = false
+        this.rightMouseHeld = false
+      }
     })
     window.addEventListener(
       'wheel',
@@ -147,6 +164,7 @@ class InputManager {
       f.proneToggle = hit('KeyZ')
       f.grabToggle = hit('KeyG')
       f.use = hit('KeyF') || this.rightClicked
+      f.useHeld = down('KeyF') || this.rightMouseHeld
       f.chat = hit('Enter') || hit('KeyT')
       f.ptt = down('KeyV')
       f.muteToggle = hit('KeyM')
@@ -178,6 +196,7 @@ class InputManager {
     f.crouchToggle ||= th('crouch')
     f.interact ||= th('interact')
     f.use ||= th('use')
+    f.useHeld ||= this.touchButtons.has('use')
     f.grabToggle ||= th('grab')
     f.menu ||= th('menu')
     f.muteToggle ||= th('mute')
@@ -204,6 +223,7 @@ class InputManager {
       f.jump ||= edge(0)
       f.crouchToggle ||= edge(1)
       f.use ||= edge(2)
+      f.useHeld ||= b(2)
       f.grabToggle ||= edge(3)
       f.interact ||= edge(7)
       f.interactHeld ||= b(7)
@@ -227,6 +247,8 @@ class InputManager {
     if (this.suspended) {
       f.moveX = f.moveY = 0
       f.jump = false
+      f.use = false
+      f.useHeld = false
     }
     return f
   }

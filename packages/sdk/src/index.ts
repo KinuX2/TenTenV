@@ -1,5 +1,6 @@
 // TenTenV ワールド SDK
 export * from './runtime'
+export * from './motion'
 export * from './hooks'
 export * from './components/interaction'
 export * from './components/media'

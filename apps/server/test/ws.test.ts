@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, before, describe, test } from 'node:test'
 import { PROTOCOL_VERSION } from '@tentenv/protocol'
 import { verifyTicket } from '../src/ticket'
-import { api, buildWorldZip, guest, sleep, startServer, WsClient, type TestServer } from './helpers'
+import { api, buildWorldZip, testUser, sleep, startServer, WsClient, type TestServer } from './helpers'
 
 describe('WebSocket（/ws）', () => {
   let srv: TestServer
@@ -10,7 +10,7 @@ describe('WebSocket（/ws）', () => {
   let owner: { token: string; me: { id: string } }
   before(async () => {
     srv = await startServer()
-    owner = await guest(srv, '主催')
+    owner = await testUser(srv, '主催')
     worldId = (await api(srv, 'POST', '/api/worlds', { token: owner.token, raw: buildWorldZip({ name: '広場' }) })).data.id
   })
   after(() => srv.close())
@@ -49,7 +49,7 @@ describe('WebSocket（/ws）', () => {
   })
 
   test('2 人の参加・peer-joined・チケット・信号の転送・中継・退出', async () => {
-    const b = await guest(srv, '参加者B')
+    const b = await testUser(srv, '参加者B')
     const inst = await instance(owner.token)
     const info = (await api(srv, 'GET', '/api/info')).data
     const ca = await WsClient.connect(srv, owner.token)
@@ -136,7 +136,7 @@ describe('WebSocket（/ws）', () => {
   test('1 接続 1 インスタンス', async () => {
     const i1 = await instance(owner.token)
     const i2 = await instance(owner.token)
-    const watcher = await WsClient.connect(srv, (await guest(srv, '見張り')).token)
+    const watcher = await WsClient.connect(srv, (await testUser(srv, '見張り')).token)
     const c = await WsClient.connect(srv, owner.token)
     watcher.send({ t: 'join', instanceId: i1.id, hostScore: 0 })
     await watcher.next('joined')
@@ -192,8 +192,8 @@ describe('WebSocket（/ws）', () => {
 
   test('定員と順番待ち', async () => {
     const inst = await instance(owner.token, { capacity: 1 })
-    const b = await guest(srv, '待つ人')
-    const c2 = await guest(srv, '次に待つ人')
+    const b = await testUser(srv, '待つ人')
+    const c2 = await testUser(srv, '次に待つ人')
     const ca = await WsClient.connect(srv, owner.token)
     const cb = await WsClient.connect(srv, b.token)
     const cc = await WsClient.connect(srv, c2.token)
@@ -221,7 +221,7 @@ describe('WebSocket（/ws）', () => {
 
   test('フレンド限定のインスタンスに知らない人は入れない', async () => {
     const inst = await instance(owner.token, { access: 'friends' })
-    const stranger = await guest(srv, '通りすがり')
+    const stranger = await testUser(srv, '通りすがり')
     const c = await WsClient.connect(srv, stranger.token)
     c.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
     const e = await c.next('error')
@@ -233,8 +233,8 @@ describe('WebSocket（/ws）', () => {
   })
 
   test('フレンド+ と 招待+（中にいる人が基準）', async () => {
-    const inside = await guest(srv, '中の人')
-    const friendOfInside = await guest(srv, '中の人の友達')
+    const inside = await testUser(srv, '中の人')
+    const friendOfInside = await testUser(srv, '中の人の友達')
     await api(srv, 'POST', `/api/friends/${friendOfInside.me.id}`, { token: inside.token })
     await api(srv, 'POST', `/api/friends/${inside.me.id}`, { token: friendOfInside.token })
     const fp = await instance(owner.token, { access: 'friends+' })
@@ -249,7 +249,7 @@ describe('WebSocket（/ws）', () => {
 
     // 招待+: 中にいる人が招待できる
     const ip = await instance(owner.token, { access: 'invite+' })
-    const invited = await guest(srv, '招待された人')
+    const invited = await testUser(srv, '招待された人')
     assert.equal((await api(srv, 'POST', '/api/invites', { token: inside.token, body: { userId: invited.me.id, instanceId: ip.id } })).status, 403)
     ci.send({ t: 'join', instanceId: ip.id, hostScore: 0 })
     assert.equal((await ci.next('error')).code, 'denied')
@@ -267,7 +267,7 @@ describe('WebSocket（/ws）', () => {
 
   test('キック', async () => {
     const inst = await instance(owner.token)
-    const b = await guest(srv, 'キックされる人')
+    const b = await testUser(srv, 'キックされる人')
     const ca = await WsClient.connect(srv, owner.token)
     const cb = await WsClient.connect(srv, b.token)
     ca.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
@@ -289,8 +289,8 @@ describe('WebSocket（/ws）', () => {
 
   test('ブロックしている相手は hidden になり、信号も通らない', async () => {
     const inst = await instance(owner.token)
-    const x = await guest(srv, 'X')
-    const y = await guest(srv, 'Y')
+    const x = await testUser(srv, 'X')
+    const y = await testUser(srv, 'Y')
     await api(srv, 'POST', `/api/blocks/${y.me.id}`, { token: x.token })
     const cx = await WsClient.connect(srv, x.token)
     const cy = await WsClient.connect(srv, y.token)
@@ -312,7 +312,7 @@ describe('WebSocket（/ws）', () => {
 
   test('インスタンスの参加者は共有ファイルを上げられる', async () => {
     const inst = await instance(owner.token)
-    const m = await guest(srv, 'メンバー')
+    const m = await testUser(srv, 'メンバー')
     const c = await WsClient.connect(srv, m.token)
     assert.equal((await api(srv, 'POST', `/api/instances/${inst.id}/files?name=a.txt`, { token: m.token, raw: new Uint8Array([65]) })).status, 403)
     c.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
@@ -325,8 +325,8 @@ describe('WebSocket（/ws）', () => {
   })
 
   test('フレンドの状態と通知が届く', async () => {
-    const p = await guest(srv, 'P')
-    const q = await guest(srv, 'Q')
+    const p = await testUser(srv, 'P')
+    const q = await testUser(srv, 'Q')
     const cp = await WsClient.connect(srv, p.token)
     // 申請の通知
     await api(srv, 'POST', `/api/friends/${p.me.id}`, { token: q.token })
@@ -359,7 +359,7 @@ describe('WebSocket（/ws）', () => {
   test('中継を無効にしたサーバー', async () => {
     const s2 = await startServer({ relay: false })
     try {
-      const a = await guest(s2, 'a')
+      const a = await testUser(s2, 'a')
       const w = (await api(s2, 'POST', '/api/worlds', { token: a.token, raw: buildWorldZip() })).data
       const inst = (await api(s2, 'POST', '/api/instances', { token: a.token, body: { worldId: w.id, access: 'public' } })).data
       const info = (await api(s2, 'GET', '/api/info')).data

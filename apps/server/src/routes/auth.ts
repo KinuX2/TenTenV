@@ -1,23 +1,24 @@
-// /api/info と認証（ゲスト・Misskey MiAuth・ログアウト）
+// /api/info と認証（Misskey MiAuth・ログアウト）
 import { PROTOCOL_VERSION, SDK_VERSION, type ServerInfo } from '@tentenv/protocol'
 import type { App } from '../app'
-import { bearer, checkDisplayName, createSession, createUser, deleteSession } from '../auth'
+import { bearer, createSession, deleteSession } from '../auth'
 import { forbidden, readJson } from '../http'
 import { finishMiAuth, startMiAuth } from '../misskey'
-import { newId } from '../social'
 import { meInfo } from '../views'
 import { limitIp } from './util'
 import { defaultHomeWorldId } from '../seed'
+import { brandLogo } from '../files'
 
 export const serverInfo = (app: App): ServerInfo => ({
   protocol: PROTOCOL_VERSION,
   name: app.config.name,
   description: app.config.description,
+  branding: { siteName: app.config.branding.siteName, logoUrl: brandLogo(app.config.branding.logoFile) ? '/branding/logo' : null, logoLayout: app.config.branding.logoLayout },
   publicUrl: app.publicUrl,
   termsUrl: app.config.termsUrl,
   publicKey: app.keys.publicKey,
   serverId: app.keys.serverId,
-  auth: { guest: app.config.allowGuest, misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts },
+  auth: { misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts },
   limits: { ...app.config.limits },
   relay: app.config.relay,
   iceServers: app.config.iceServers,
@@ -29,15 +30,6 @@ export const authRoutes = (app: App) => {
   const r = app.router
 
   r.get('/api/info', () => serverInfo(app))
-
-  r.post('/api/auth/guest', async (req) => {
-    if (!app.config.allowGuest) throw forbidden('このサーバーではゲストログインを使えません')
-    limitIp(app, 'auth', req)
-    const body = await readJson(req.raw, 4096)
-    const displayName = checkDisplayName(body.displayName)
-    const user = createUser(app, { handle: `guest:${newId(8)}`, displayName, iconUrl: null, isGuest: true })
-    return { token: createSession(app, user.id), me: meInfo(app, user) }
-  })
 
   r.post('/api/auth/misskey/start', async (req) => {
     limitIp(app, 'auth', req)

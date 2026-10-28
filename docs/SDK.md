@@ -267,17 +267,19 @@ npx ttv-world upload --server http://localhost:8787 --token <トークン> --wor
 | `orientation` | `'keep'` | `'keep'` はつかんだときの向きを保つ、`'grip'` は手の向きに合わせる |
 | `throwable` | `true` | 離したときに手の勢いで飛ぶ |
 | `onGrab` / `onDrop` / `onUse` | `(by: PlayerInfo) => void` | つかんだ・離した・持ったまま「使う」を押した（その人の端末で呼ばれる） |
+| `onUseChange` | `(pressed: boolean, by: PlayerInfo) => void` | 「使う」を押したときに `true`、離したときや物を手放したときに `false`（その人の端末で呼ばれる） |
 
-`ref` で `PickupHandle` を受け取れます: `holder()`（持っている人の peerId）、`drop()`、`reset(position, quaternion?)`（全員で元の場所へ戻す）。
+`ref` で `PickupHandle` を受け取れます: `holder()`（持っている人の peerId）、`isUsing()`（この端末で「使う」を押している間は `true`）、`drop()`、`reset(position, quaternion?)`（全員で元の場所へ戻す）。`onUse` は押した瞬間に一度だけ呼ばれ、押し続けている間は `isUsing()` で状態を読めます。`onUseChange` は状態が変わったときだけ呼ばれます。
 
 - 持ち主（最後につかんだ人。いなければホスト）だけが物理演算で動かし、15 回/秒で位置を配ります。
+- `physics={false}` の物は離した場所と向きがインスタンスの同期状態に残り、後から入った人にも復元されます。`reset()` は物理演算の有無にかかわらず全員の位置を合わせます。
 - ほかの人が持っている物は取り上げられません。
 - 自分で `RigidBody` の中に入れないでください（体は SDK が作ります）。
 - 一度に送れる物の位置は 32 個までです。同時に動く物はそれ以下にしてください。
 
 ```tsx
 const ref = useRef<PickupHandle>(null)
-<Pickup ref={ref} id="cup" label="カップ" position={[1, 1, 0]} onUse={() => notify('乾杯！')}>
+<Pickup ref={ref} id="cup" label="カップ" position={[1, 1, 0]} onUse={() => notify('乾杯！')} onUseChange={(pressed) => setPouring(pressed)}>
   <mesh><cylinderGeometry args={[0.04, 0.04, 0.1]} /><meshStandardMaterial /></mesh>
 </Pickup>
 <Clickable label="カップを戻す" onClick={() => ref.current?.reset([1, 1, 0])}>…</Clickable>
@@ -325,11 +327,19 @@ const ref = useRef<PickupHandle>(null)
 |---|---|---|
 | `width` / `height` | `2` / `2` | 大きさ（m） |
 | `position` / `rotation` | — | 置き場所 |
+| `resolution` | — | 描画解像度。数値なら縦のピクセル数から鏡の縦横比に合わせて計算し、`[横, 縦]` ならそれぞれ指定（各辺 64〜4096px） |
+| `color` | `'#c8ccd0'` | 鏡面の色。CSS 色か RGB の数値で指定 |
 | `quality` | `1` | 画面の解像度に対する倍率（最大 2048px） |
-| `tint` | `'#c8ccd0'` | 色 |
+| `tint` | `'#c8ccd0'` | 既存ワールド向けの色指定。`color` があればそちらを優先 |
 | `showWorld` | `true` | `false` でアバターだけを映す（軽くなる） |
 
-鏡はシーンをもう一度描くので重い部品です。`quality` を下げるか、切り替えられるようにしておくのがおすすめです（ホームの `MirrorCorner.tsx` を参照）。
+`resolution` と `color` はワールドの React state で変更できます。`resolution` の `[横, 縦]` は鏡の `width / height` と同じ比率にすると映像が伸びません。`resolution` を省略すると、従来どおり画面サイズと `quality` で解像度を決めます。
+
+```tsx
+<MirrorSurface width={2.4} height={1.8} resolution={1080} color="#e4f2dc" position={[0, 1.5, -3]} />
+```
+
+鏡はシーンをもう一度描くので重い部品です。解像度を下げるか、切り替えられるようにしておくのがおすすめです（ホームの `MirrorCorner.tsx` を参照）。
 
 ### `<MediaScreen>`
 
@@ -351,6 +361,32 @@ const ref = useRef<PickupHandle>(null)
 - ずれが 0.6 秒を超えると飛び、小さいずれは再生速度を ±4% 変えて合わせます。
 
 同期の状態の形は `MediaState` 型（`url, playing, offset, anchor, loop, lockedBy`）として export しています。
+
+### `<ScreenShareSurface>` / `useScreenShare()`
+
+参加者の画面やウィンドウをワールド内に表示します。ブラウザーの画面選択と許可を経てから共有が始まります。1 インスタンスで同時に共有できるのは 1 人です。複数のスクリーンを置くと同じ映像が映ります。
+
+```tsx
+import { ScreenShareSurface, useScreenShare, useDialogs, Clickable } from '@tentenv/sdk'
+
+function SharedStage() {
+  const share = useScreenShare()
+  const { notify } = useDialogs()
+  return <>
+    <ScreenShareSurface position={[0, 2, -4]} width={4} controls={false} />
+    <Clickable label={share.isSharing ? '共有を停止' : '画面を共有'}
+      onClick={() => share.isSharing ? share.stop() : void share.start().catch((e) => notify(String(e)))}>
+      <mesh><boxGeometry args={[0.5, 0.2, 0.1]} /><meshStandardMaterial color="#438a42" /></mesh>
+    </Clickable>
+  </>
+}
+```
+
+`ScreenShareSurface` の `controls` は既定で `true` なので、スクリーンだけ置いても開始・停止ボタンが使えます。`width` の既定は 3.2m、`position`・`rotation`・未共有時の `placeholder` も指定できます。映像は縦横比を維持して表示します。
+
+`useScreenShare()` は `owner`（共有者の `PlayerInfo` または `null`）、`video`（共有映像の `HTMLVideoElement` または `null`）、`isSharing`、`start()`、`stop()` を返します。独自のスクリーンを作る場合は `video` から `VideoTexture` を作れます。`start()` はクリックなどのユーザー操作から直接呼びます。`start({ frameRate: 15 })` のように映像のフレームレート（1〜30、既定 24）を指定できます。画面取得に失敗した場合は Promise が reject されます。ワールドから退出すると共有は終了します。
+
+映像は参加者間の WebRTC 接続で届きます。中継接続の参加者と開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
 
 ### `<ImagePanel>`
 
@@ -500,6 +536,29 @@ useFrame(() => { ref.current!.rotation.y = (clock.now() / 1000) % (Math.PI * 2) 
 
 **`useTeleport()`** → `{ teleport(position, yaw?), respawn() }`。`yaw` はラジアンです（`<SpawnPad>` とマニフェストは度なので注意）。
 
+**`useAvatarMotion()`** → `{ setPose(bones, weight?), play(motion), stop(), isActive() }`。ワールド内にいる本人のアバターの骨を動かします。ほかの参加者と途中参加者にも同じ動きが表示されます。
+
+```tsx
+import { Clickable, useAvatarMotion } from '@tentenv/sdk'
+
+function WaveButton() {
+  const avatar = useAvatarMotion()
+  return <Clickable label="手を振る" onClick={() => avatar.play({
+    frames: [
+      { at: 0, bones: { rightUpperArm: [0, 0, 0] } },
+      { at: 300, bones: { rightUpperArm: [0, 0, -1.3] } },
+      { at: 600, bones: { rightUpperArm: [0, 0, -0.8] } },
+      { at: 900, bones: { rightUpperArm: [0, 0, -1.3] } },
+      { at: 1200, bones: { rightUpperArm: [0, 0, 0] } },
+    ],
+  })}>
+    <mesh><boxGeometry args={[0.4, 0.2, 0.1]} /><meshStandardMaterial color="#6abf7a" /></mesh>
+  </Clickable>
+}
+```
+
+`setPose({ leftUpperArm: [0, 0, 1] })` は `stop()` まで姿勢を保ちます。`play` はキーフレーム間を補間し、最後の時刻で通常の動きに戻ります。`loop: true` を指定すると繰り返します。`weight` は通常の動きとの混合率（0〜1）。時刻は開始からのミリ秒、骨の回転は中立姿勢からのローカル XYZ ラジアンです。最初のフレームは `at: 0`、動きは 2〜32 フレーム、最長 60 秒で、同期状態の 16KB 制限以内に収めます。頭や手のトラッキング、移動、視点そのものは変更しません。ワールドを出ると解除されます。
+
 **`useVoiceGain()`** → `(peerId, gain | null) => void`。その人の声の音量（0〜2）を、このワールドの中だけで変えます（ステージのマイクなど）。`null` で元に戻します。
 
 **`useAudioListener()`** — カメラに付いている `AudioListener`。ワールドの立体音響はこれにつなぎます。
@@ -529,7 +588,7 @@ await store.player.set('best', 42)
 | ワールドの合計 | 10MB |
 | 書き込みの回数 | 1 人 1 分 30 回 |
 
-- 書けるのは、ゲスト以外で、そのワールドのインスタンスに入っている人と、ワールドの制作者だけです。読むのはログインしている人なら誰でもできます。
+- 書けるのは、そのワールドのインスタンスに入っている人と、ワールドの制作者だけです。読むのはログインしている人なら誰でもできます。
 - 値がないキーの `get` は `null` です（開発用の実行環境では `undefined`）。
 - `increment` は数値でない値には使えません。
 - 開発用の実行環境ではブラウザの localStorage に保存されます。
@@ -538,7 +597,7 @@ await store.player.set('best', 42)
 
 インスタンスで共有するファイル（アップロードした曲・画像など）です。`SharedFileInfo`（`id, fileName, contentType, fileSize, url, description, meta, locked, uploadedBy, createdAt`）を返します。
 
-- アップロードできるのは、そのインスタンスにいる人（と作成者）です。ゲストは親サーバーの `allowGuestUploads` しだいです。
+- アップロードできるのは、そのインスタンスにいる人（と作成者）です。
 - 1 ファイルの上限は親サーバーの設定（既定 50MB）、1 インスタンス 200 個・合計 1GB まで。
 - `opts`: `description`（500 文字まで）、`meta`（文字列 → 文字列、20 項目まで）、`onProgress(ratio)`。
 - 変更・削除はアップロードした人とインスタンスの作成者（と管理者）だけ。`locked: true` にしたファイルは、ロックを外すまで変更・削除できません。
@@ -586,7 +645,7 @@ PC・スマホでは画面の上に、VR では目の前の板に出ます。
 ### 6.10 そのほか
 
 - `useRuntime()` — 実行環境（`WorldRuntime`）そのもの。ふつうは上のフックを使ってください。
-- `SDK_VERSION` — SDK のバージョン文字列（`'0.1.0'`）。
+- `SDK_VERSION` — SDK のバージョン文字列（`'0.1.1'`）。
 
 ### ビルド・ツール用のエントリ
 

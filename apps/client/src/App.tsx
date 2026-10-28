@@ -10,6 +10,7 @@ import { SharedWorld } from './ui/screens/SharedWorld'
 import { Home } from './ui/screens/Home'
 import { playUiClick } from './ui/clickSound'
 import { LoadingParticles } from './ui/LoadingParticles'
+import { applyBrowserBranding } from './ui/Brand'
 // 3D の部分は必要になってから読み込む（ホーム画面を速く開くため）
 const WorldSession = lazy(() => import('./world/WorldSession').then((m) => ({ default: m.WorldSession })))
 
@@ -33,9 +34,12 @@ export const App: React.FC = () => {
   const screen = useApp((s) => s.screen)
   const me = useApp((s) => s.me)
   const api = useApp((s) => s.api)
+  const info = useApp((s) => s.info)
   const online = useNet((s) => s.online)
   const [sharedWorld] = useState(incomingWorld)
   const [showConnect, setShowConnect] = useState(() => new URLSearchParams(location.search).has('session'))
+
+  useEffect(() => applyBrowserBranding(info, api?.base ?? null), [info, api])
 
   useEffect(() => {
     const onClick = (event: MouseEvent) => {

@@ -21,7 +21,7 @@
     "@react-three/uikit": "^1.0.77",
     "@react-three/xr": "^6.6.32",
     "@tentenv/protocol": "0.1.0",
-    "@tentenv/sdk": "0.1.0",
+    "@tentenv/sdk": "0.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.186.1",

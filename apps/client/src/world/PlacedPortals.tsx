@@ -45,7 +45,7 @@ export const placePortal = (engine: WorldEngine, target: PortalTarget, p: [numbe
   for (const [key] of mine.slice(0, Math.max(0, mine.length - MAX_PER_USER + 1))) session.set(key, null)
   const now = Date.now()
   const id = Math.random().toString(36).slice(2, 10)
-  const ownerName = useApp.getState().me?.displayName ?? 'Guest'
+  const ownerName = useApp.getState().me?.displayName ?? 'Player'
   const ownerUserId = useApp.getState().me?.id ?? ''
   session.set(`${PREFIX}${session.selfId}:${id}`, {
     ...target, owner: session.selfId, ownerName, ownerUserId, p, yaw, createdAt: now, expiresAt: now + LIFETIME,

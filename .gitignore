@@ -8,6 +8,9 @@ apps/server/data/
 .env
 apps/server/server.config.json
 server.config.json
+apps/server/branding/*
+deploy/branding/*
+!deploy/branding/README.md
 apps/client/public/mediapipe/
 apps/server/seed/*.ttvw
 apps/desktop/native/build/

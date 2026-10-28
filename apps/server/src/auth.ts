@@ -30,9 +30,12 @@ export const userFromToken = (app: App, token: string | null | undefined): UserR
     app.db.run('DELETE FROM sessions WHERE token_hash = ?', h)
     return null
   }
-  if (s.expires_at - now < SESSION_TTL - RENEW_AFTER) app.db.run('UPDATE sessions SET expires_at = ? WHERE token_hash = ?', now + SESSION_TTL, h)
   const user = getUser(app, s.user_id)
-  if (!user) return null
+  if (!user || user.is_guest) {
+    app.db.run('DELETE FROM sessions WHERE token_hash = ?', h)
+    return null
+  }
+  if (s.expires_at - now < SESSION_TTL - RENEW_AFTER) app.db.run('UPDATE sessions SET expires_at = ? WHERE token_hash = ?', now + SESSION_TTL, h)
   if (now - user.last_seen > 60_000) app.db.run('UPDATE users SET last_seen = ? WHERE id = ?', now, user.id)
   return user
 }

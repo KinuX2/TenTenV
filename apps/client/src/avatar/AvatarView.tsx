@@ -8,6 +8,7 @@ import { BUNDLED_AVATARS, bundledAvatar } from './bundled'
 import { FaceDriver } from './face'
 import { AvatarPoser, type PoseInput } from './poser'
 import type { AvatarModel } from './types'
+import { applyAvatarMotion, type AvatarMotionState } from './worldMotion'
 import { AVATAR_LIMITS, loadVrmAvatar } from './vrm'
 import type { VoiceLevel } from '../net/voice'
 
@@ -15,6 +16,8 @@ export interface AvatarFrame {
   pose: PoseInput
   expression: Record<string, number>
   voice: VoiceLevel
+  motion?: AvatarMotionState | null
+  motionTime?: number
   /** 視線を向ける先（ワールド座標）。null なら正面 */
   look: [number, number, number] | null
 }
@@ -140,7 +143,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
     const f = frame(Math.min(dt, 0.1))
     model.root.visible = visible && !!f
     if (!f) return
-    poser.update(f.pose, Math.min(dt, 0.1))
+    poser.update(f.pose, Math.min(dt, 0.1), () => applyAvatarMotion(model, f.motion ?? null, f.motionTime ?? 0))
     if (f.look) {
       lookObj.position.set(...f.look)
       lookObj.updateMatrixWorld()

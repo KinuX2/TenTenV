@@ -1,11 +1,14 @@
 {
   "name": "TenTenV Server",
   "description": "みんなで集まれる親サーバーです",
+  "branding": {
+    "siteName": "TenTenV",
+    "logoFile": null,
+    "logoLayout": "icon"
+  },
   "termsUrl": null,
   "publicUrl": "https://vr.example.com",
   "port": 8787,
-  "allowGuest": true,
-  "allowGuestUploads": true,
   "misskey": {
     "enabled": true,
     "allowedHosts": null

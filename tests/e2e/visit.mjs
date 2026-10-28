@@ -1,17 +1,16 @@
 // ブラウザで 1 人でワールドに入り、スクリーンショットを撮る
 // 使い方: node tests/e2e/visit.mjs <クライアントの URL> <ワールド名> <出力ファイル名の頭> [待ち ms]
 import { chromium } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 const [,, url, world, out, waitMs = '15000'] = process.argv
 const b = await chromium.launch({ executablePath: process.env.BROWSER ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', headless: true, args: ['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream','--enable-unsafe-swiftshader','--use-angle=swiftshader','--autoplay-policy=no-user-gesture-required'] })
 const ctx = await b.newContext({ viewport: { width: 1280, height: 760 } })
+await prepareTestLogin(ctx, 'Tester', url)
 const p = await ctx.newPage()
 const logs = []
 p.on('console', (m) => logs.push(`${m.type()}: ${m.text()}`))
 p.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`))
 await p.goto(url)
-await p.getByRole('button', { name: /接続|Connect/ }).click()
-await p.getByPlaceholder(/表示名|Display name/).fill('Tester')
-await p.getByRole('button', { name: /^入る$|^Enter$/ }).click()
 await p.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
 await p.getByText(world, { exact: true }).first().click()
 await p.getByRole('button', { name: /作って入る|Create & join/ }).click()

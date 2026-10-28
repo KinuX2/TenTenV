@@ -1,8 +1,9 @@
 // 公式サイトのスクリーンショットを撮る（開発ビルドのクライアントと親サーバーが動いているときに使う）
-// 使い方: node apps/site/scripts/capture.mjs [クライアントの URL]
+// 使い方: TTV_E2E_TOKEN_AOI / REN / MIO / KAI に別々のトークンを設定して実行
 // 画面の操作ボタンは隠し、3D の様子だけを撮る（スマホとホーム画面は UI ごと撮る）
 import { chromium, devices } from 'playwright-core'
 import { join } from 'node:path'
+import { prepareTestLogin } from '../../../tests/e2e/auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const OUT = join(import.meta.dirname, '..', 'public', 'shots')
@@ -13,18 +14,16 @@ const browser = await chromium.launch({
 })
 const HIDE_HUD = '.hud, .toasts { display: none !important; }'
 
-/** ゲストで入る（標準アバター） */
+/** ログイン済みのアカウントで入る（標準アバター） */
 const open = async (name, avatar, opts = {}) => {
   const ctx = await browser.newContext(opts.device ?? { viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 })
+  await prepareTestLogin(ctx, opts.authName ?? name, opts.link ?? CLIENT)
   await ctx.addInitScript((a) => {
     localStorage.setItem('ttv.avatar.v1', JSON.stringify({ kind: 'builtin', id: 'akane', color: '#6ea8ff', scale: 1 }))
     localStorage.setItem('ttv.settings.v1', JSON.stringify({ quality: 'ultra', showNameplates: true, startMuted: true, fov: 62 }))
   }, avatar)
   const p = await ctx.newPage()
   await p.goto(opts.link ?? CLIENT)
-  await p.getByRole('button', { name: /接続|Connect/ }).click()
-  await p.getByPlaceholder(/表示名|Display name/).fill(name)
-  await p.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!opts.link) await p.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return p
 }
@@ -122,9 +121,8 @@ try {
   for (const p of [b, c, d]) await p.context().close()
 
   // ---- DJ ラウンジ ----
-  await a.evaluate(() => (location.href = location.origin))
-  await a.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 20000 }).catch(() => {})
-  const dj = await open('DJ', {})
+  await a.context().close()
+  const dj = await open('DJ', {}, { authName: 'Aoi' })
   await enterNew(dj, 'DJ Lounge')
   await dj.waitForTimeout(6000)
   await place(dj, [0, 0, 1.5], [0, 2.3, -6])
@@ -132,7 +130,7 @@ try {
   await dj.context().close()
 
   // ---- スマホ（UI ごと） ----
-  const m = await open('Phone', {}, { device: devices['Pixel 7'] })
+  const m = await open('Phone', {}, { device: devices['Pixel 7'], authName: 'Aoi' })
   await enterNew(m, 'ホーム')
   await place(m, [0, 0, 11], [0, 1.6, 0])
   await shot(m, 'mobile', false)

@@ -20,8 +20,8 @@ TenTenV の親サーバー・クライアント・参加者どうしの通信の
 
 | メソッド・パス | 入力 | 出力・内容 |
 |---|---|---|
-| `GET /api/info` | — | `ServerInfo`（名前・公開鍵・serverId・ログイン方法・上限・中継の可否・ICE サーバー・既定のホームワールド） |
-| `POST /api/auth/guest` | `{displayName}` | `{token, me}`。設定でゲストが無効なら 403 |
+| `GET /api/info` | — | `ServerInfo`（名前・`branding` のサイト名とロゴ URL・公開鍵・serverId・ログイン方法・上限・中継の可否・ICE サーバー・既定のホームワールド） |
+| `GET /branding/logo` | — | 設定されたロゴ画像。`branding.logoUrl` が `null` の場合は未設定 |
 | `POST /api/auth/misskey/start` | `{host, callback}` | `{url, session}`。`url` は Misskey の MiAuth の画面（権限は `read:account` だけ） |
 | `POST /api/auth/misskey/finish` | `{session}` | `{token, me}` |
 | `POST /api/auth/logout` | — | セッションを消す |
@@ -422,7 +422,7 @@ offset = s + rtt / 2 - (performance.timeOrigin + now)
 | `PROTOCOL_VERSION` | `2` | クライアントは `/api/info` の `protocol`、親サーバーは `hello` の `protocol` を確かめ、違えば接続しない |
 | `PEER_PROTOCOL` | `1` | `hello` の `v` で送る（今の版では受け手は確かめていない） |
 | ワールドの `formatVersion` | `1` | 親サーバーとクライアントが確かめる |
-| `SDK_VERSION` | `'0.1.0'` | マニフェストに記録する（読み込みのときには確かめていない） |
+| `SDK_VERSION` | `'0.1.1'` | マニフェストに記録する（読み込みのときには確かめていない） |
 | アバター拡張定義の `version` | `1` | 親サーバーが確かめる |
 
 方針: 互換性のない変更をするときは、その番号を上げます。足すだけの変更（知らない項目は無視できるもの）では上げません。

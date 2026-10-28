@@ -38,10 +38,9 @@ export const storageRoutes = (app: App) => {
     return k
   }
 
-  /** 書き込める人: ゲスト以外で、そのワールドのインスタンスにいる人か制作者 */
+  /** 書き込める人: そのワールドのインスタンスにいる人か制作者 */
   const writer = (req: Req, w: { id: string; author_id: string }): UserRow => {
     const me = requireUser(app, req)
-    if (me.is_guest) throw forbidden('ゲストはワールドのデータを保存できません')
     const inside = app.instances.locationOf(me.id)?.worldId === w.id
     if (!inside && me.id !== w.author_id) throw forbidden('このワールドに入っているときだけ保存できます')
     if (!app.limiters.storage.take(me.id)) throw tooMany('保存の回数が多すぎます（1 分に 30 回まで）')

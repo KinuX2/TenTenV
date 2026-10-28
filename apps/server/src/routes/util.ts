@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto'
 import type { App } from '../app'
 import { requireUser } from '../auth'
-import { forbidden, tooMany, type Req } from '../http'
+import { tooMany, type Req } from '../http'
 import type { UserRow } from '../views'
 
 export const sha256hex = (data: Uint8Array) => createHash('sha256').update(data).digest('hex')
@@ -14,10 +14,9 @@ export const limitIp = (app: App, kind: 'auth' | 'upload', req: Req) => {
   if (!app.limiters[kind].take(req.ip)) throw tooMany()
 }
 
-/** アップロードしてよい利用者か（ゲストは設定しだい） */
+/** アップロードしてよい利用者か */
 export const requireUploader = (app: App, req: Req): UserRow => {
   const u = requireUser(app, req)
-  if (u.is_guest && !app.config.allowGuestUploads) throw forbidden('ゲストはアップロードできません。Misskey でログインしてください')
   limitIp(app, 'upload', req)
   return u
 }

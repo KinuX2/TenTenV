@@ -19,6 +19,9 @@ export interface Transport {
   /** マイクの音（null で止める） */
   setAudioTrack(track: MediaStreamTrack | null): void
   onRemoteAudio(cb: (peerId: string, stream: MediaStream) => void): () => void
+  /** Screen capture video is sent over the peer connection when available. */
+  setVideoTrack(track: MediaStreamTrack | null): void
+  onRemoteVideo(cb: (peerId: string, stream: MediaStream) => void): () => void
   /** 親サーバーにつながっているか */
   serverUp(): boolean
   onServer(cb: (up: boolean) => void): () => void

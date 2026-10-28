@@ -103,7 +103,7 @@ export const LocalAvatar: React.FC<{ engine: WorldEngine; onEye: (eye: number, m
       sleep: p.sleep,
       scale,
     }
-    return { pose, expression, voice, look: look.current }
+    return { pose, expression, voice, look: look.current, motion: engine.avatarMotion(engine.session.selfId), motionTime: engine.session.clock.now() }
   }
   return (
     <AvatarView
@@ -342,7 +342,7 @@ const RemotePlayer: React.FC<{ engine: WorldEngine; member: Member; showAvatar: 
       if (performance.now() < touchCool.current) return
       touchCool.current = performance.now() + 800
     })
-    return { pose, expression: member.expr.weights, voice, look }
+    return { pose, expression: member.expr.weights, voice, look, motion: engine.avatarMotion(peerId), motionTime: engine.session.clock.now() }
   }
 
   useFrame(({ camera }) => {

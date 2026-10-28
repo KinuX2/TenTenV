@@ -1,6 +1,7 @@
 // VR の確認（開発モードの WebXR エミュレーター）: VR に入る → 頭と手の追従 → メニュー
 // 使い方: node tests/e2e/vr.mjs [クライアントの URL] [ワールド名] [出力の頭]
 import { chromium } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = process.argv[3] ?? 'テンプレートワールド'
@@ -18,6 +19,7 @@ const check = (label, cond, detail = '') => {
 const logs = []
 try {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 700 } })
+  await prepareTestLogin(ctx, 'VRTester', CLIENT)
   // WebXR が使えないことにして、エミュレーターを使わせる
   await ctx.addInitScript(() => {
     try {
@@ -28,9 +30,6 @@ try {
   p.on('pageerror', (e) => logs.length < 3 && logs.push(`pageerror: ${e.message} ${e.stack}`))
   p.on('console', (m) => m.type() === 'error' && logs.push(`console: ${m.text()}`))
   await p.goto(CLIENT)
-  await p.getByRole('button', { name: /接続|Connect/ }).click()
-  await p.getByPlaceholder(/表示名|Display name/).fill('VRTester')
-  await p.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   await p.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   await p.getByText(WORLD, { exact: true }).first().click()
   await p.getByRole('button', { name: /作って入る|Create & join/ }).click()

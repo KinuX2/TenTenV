@@ -1,13 +1,16 @@
 // テスト用: 一時フォルダでサーバーを起動し、REST と WebSocket を呼ぶ
 import { mkdtempSync, rmSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { zipSync } from 'fflate'
 import WebSocket from 'ws'
 import { PROTOCOL_VERSION, type ServerSignal } from '@tentenv/protocol'
 import { App } from '../src/app'
+import { createSession, createUser } from '../src/auth'
 import { defaultConfig, mergeConfig } from '../src/config'
 import { buildManifest, sha256 } from '../src/sdk'
+import { meInfo } from '../src/views'
 
 export interface TestServer {
   app: App
@@ -60,10 +63,10 @@ export const api = async <T = any>(srv: TestServer, method: string, path: string
   return { status: r.status, data, headers: r.headers }
 }
 
-export const guest = async (srv: TestServer, displayName: string) => {
-  const r = await api(srv, 'POST', '/api/auth/guest', { body: { displayName } })
-  if (r.status !== 200) throw new Error(`guest login failed: ${r.status} ${JSON.stringify(r.data)}`)
-  return r.data as { token: string; me: { id: string; displayName: string } }
+/** 認証 API に依存しない、REST・WebSocket テスト用のログイン済み利用者 */
+export const testUser = async (srv: TestServer, displayName: string) => {
+  const user = createUser(srv.app, { handle: `@fixture-${randomBytes(8).toString('hex')}@test.local`, displayName, iconUrl: null, isGuest: false })
+  return { token: createSession(srv.app, user.id), me: meInfo(srv.app, user) }
 }
 
 /** 簡単なワールドパッケージ（.ttvw）を作る */

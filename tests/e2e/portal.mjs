@@ -2,6 +2,7 @@
 // E2E_SERVER=http://127.0.0.1:8797 node tests/e2e/portal.mjs http://127.0.0.1:5197
 import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
+import { prepareTestLogin } from './auth.mjs'
 
 const client = process.argv[2] ?? 'http://127.0.0.1:5190'
 const server = process.env.E2E_SERVER ?? 'http://127.0.0.1:8787'
@@ -15,6 +16,7 @@ const browser = await chromium.launch({
 const errors = []
 const open = async (name, link = client) => {
   const context = await browser.newContext({ viewport: { width: 1024, height: 640 }, permissions: ['microphone', 'camera'] })
+  await prepareTestLogin(context, name, link, server)
   await context.addInitScript(() => {
     const settings = JSON.parse(localStorage.getItem('ttv.settings.v1') || '{}')
     localStorage.setItem('ttv.settings.v1', JSON.stringify({ ...settings, quality: 'low', renderScale: 0.6, shadows: false, startMuted: true }))
@@ -22,10 +24,6 @@ const open = async (name, link = client) => {
   const page = await context.newPage()
   page.on('pageerror', (error) => errors.push(`[${name}] ${error.message}`))
   await page.goto(link)
-  await page.getByPlaceholder('https://example.com').fill(new URL(link).searchParams.get('server') ?? server)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   return page
 }
 try {

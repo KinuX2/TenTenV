@@ -168,7 +168,7 @@ export class AvatarPoser {
 
   private lastRoot = new Vector3()
 
-  update(inp: PoseInput, dt: number) {
+  update(inp: PoseInput, dt: number, afterBones?: () => void) {
     const m = this.model
     const root = m.root
     const s = inp.scale
@@ -184,6 +184,7 @@ export class AvatarPoser {
     const rest = m.rest
     const hips = this.bone('hips')
     if (!hips || !rest.hips || !rest.head) {
+      afterBones?.()
       m.update(dt)
       return
     }
@@ -209,6 +210,7 @@ export class AvatarPoser {
     this.crouchAmt = MathUtils.damp(this.crouchAmt, targetCrouch, 8, dt)
     if (sleeping) {
       this.applySleep(inp, toLocal)
+      afterBones?.()
       m.update(dt)
       return
     }
@@ -314,6 +316,7 @@ export class AvatarPoser {
     // ---------------- 指 ----------------
     this.applyFingers(inp.fingers)
     this.lastYaw = inp.yaw
+    afterBones?.()
     m.update(dt)
   }
 

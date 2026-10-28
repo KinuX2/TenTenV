@@ -1,8 +1,11 @@
 {
   "name": "TenTenV Server",
   "description": "",
-  "allowGuest": true,
-  "allowGuestUploads": true,
+  "branding": {
+    "siteName": "TenTenV",
+    "logoFile": null,
+    "logoLayout": "icon"
+  },
   "misskey": {
     "enabled": true,
     "allowedHosts": null

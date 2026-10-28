@@ -11,6 +11,9 @@ import { Emitter } from '../net/transport'
 import { uiBridge } from '../ui/bridge'
 import type { BodyPose } from '../features/bodyTracking'
 import type { AvatarModel } from '../avatar/types'
+import { isAvatarMotionState, makeAvatarMotionState, makeTimedAvatarMotion, sampleAvatarMotion, type AvatarMotionState } from '../avatar/worldMotion'
+import { capturePickupPlacement } from './pickupPlacement'
+import { ScreenShareManager } from './screenShare'
 
 export interface LocalPlayerState {
   position: Vector3
@@ -65,6 +68,8 @@ export interface PickupEntry {
   /** つかんでいる間の、手から見た位置と向き */
   grabOffset: { p: Vector3; q: Quaternion } | null
   hand: 'left' | 'right' | 'desktop' | null
+  /** この端末で「使う」を押し続けているか */
+  using: boolean
   lastSent: number
   home: { p: Vector3; q: Quaternion }
 }
@@ -95,6 +100,7 @@ export class WorldEngine {
   readonly session: InstanceSession
   readonly listener = new AudioListener()
   readonly voice: VoiceManager
+  readonly screenShare: ScreenShareManager
   readonly interactables = new Map<number, Interactable>()
   readonly pickups = new Map<string, PickupEntry>()
   readonly seats = new Map<string, SeatEntry>()
@@ -111,12 +117,33 @@ export class WorldEngine {
   navigate: (target: { worldId?: string; instanceId?: string }) => void = () => {}
   avatarRef: AvatarRef
   localAvatarModel: AvatarModel | null = null
+  private avatarMotionCache = new WeakMap<object, AvatarMotionState | null>()
+
+  setPickupUsing(pk: PickupEntry, pressed: boolean, newlyPressed = false) {
+    if (pk.using === pressed) return
+    pk.using = pressed
+    const spec = pk.spec()
+    const by = this.selfInfo()
+    try {
+      spec.onUseChange?.(pressed, by)
+    } catch (e) {
+      console.error('[world] onUseChange でエラー', e)
+    }
+    if (newlyPressed && pressed && pk.using) {
+      try {
+        spec.onUse?.(by)
+      } catch (e) {
+        console.error('[world] onUse でエラー', e)
+      }
+    }
+  }
 
   constructor(ctx: WorldContext, avatar: AvatarRef) {
     this.ctx = ctx
     this.session = ctx.session
     this.avatarRef = avatar
     this.voice = new VoiceManager(this.listener)
+    this.screenShare = new ScreenShareManager(this.session)
     this.player = {
       position: new Vector3(),
       velocity: new Vector3(),
@@ -279,6 +306,12 @@ export class WorldEngine {
         }
       },
       pose: (peerId) => (peerId === s.selfId ? this.localPose() : (this.remotePoses.get(peerId) ?? null)),
+      avatar: {
+        setPose: (bones, weight = 1) => s.set(`sys:avatarMotion:${s.selfId}`, makeAvatarMotionState('pose', [{ at: 0, bones }], s.clock.now(), weight)),
+        play: (motion) => s.set(`sys:avatarMotion:${s.selfId}`, makeTimedAvatarMotion(motion, s.clock.now())),
+        stop: () => s.set(`sys:avatarMotion:${s.selfId}`, null),
+        isActive: () => sampleAvatarMotion(this.avatarMotion(s.selfId), s.clock.now()) !== null,
+      },
       hostId: () => s.hostId(),
       onHost: (cb) => s.hostEv.on(cb),
       state: {
@@ -312,25 +345,39 @@ export class WorldEngine {
         obj.updateWorldMatrix(true, false)
         obj.getWorldPosition(wp)
         obj.getWorldQuaternion(wq)
-        const e: PickupEntry = { id, obj, spec, body: null, net: [], grabOffset: null, hand: null, lastSent: 0, home: { p: wp, q: wq } }
+        const e: PickupEntry = { id, obj, spec, body: null, net: [], grabOffset: null, hand: null, using: false, lastSent: 0, home: { p: wp, q: wq } }
         this.pickups.set(id, e)
         this.interactEv.emit()
         const key = `sys:pick:${id}`
         return {
           holder: () => ((s.get(key) as { holder: string | null } | undefined)?.holder ?? null),
+          isUsing: () => e.using,
           drop: () => {
+            this.setPickupUsing(e, false)
             for (const h of ['left', 'right', 'desktop'] as const) if (this.held[h] === id) this.held[h] = null
+            e.hand = null
+            e.grabOffset = null
             const cur = s.get(key) as { holder: string | null; owner: string } | undefined
-            if (cur?.holder === s.selfId) s.set(key, { holder: null, owner: s.selfId })
+            if (cur?.holder === s.selfId) s.set(key, spec().physics
+              ? { holder: null, owner: s.selfId }
+              : { holder: null, owner: s.selfId, pose: capturePickupPlacement(obj) })
           },
           reset: (p, q) => {
-            s.set(key, { holder: null, owner: s.selfId })
+            this.setPickupUsing(e, false)
+            for (const h of ['left', 'right', 'desktop'] as const) if (this.held[h] === id) this.held[h] = null
+            e.hand = null
+            e.grabOffset = null
+            const current = capturePickupPlacement(obj)
+            const rotation = (q ? new Quaternion(...q) : new Quaternion(...current.q)).normalize()
+            s.set(key, { holder: null, owner: s.selfId, pose: { p, q: [rotation.x, rotation.y, rotation.z, rotation.w] }, reset: true })
             e.home.p.set(...p)
-            if (q) e.home.q.set(...q)
+            e.home.q.copy(rotation)
             e.net.length = 0
-            ;(e as PickupEntry & { resetTo?: { p: Vector3; q: Quaternion } }).resetTo = { p: new Vector3(...p), q: q ? new Quaternion(...q) : obj.getWorldQuaternion(new Quaternion()) }
+            ;(e as PickupEntry & { resetTo?: { p: Vector3; q: Quaternion } }).resetTo = { p: new Vector3(...p), q: rotation }
           },
           dispose: () => {
+            this.setPickupUsing(e, false)
+            for (const h of ['left', 'right', 'desktop'] as const) if (this.held[h] === id) this.held[h] = null
             this.pickups.delete(id)
             this.interactEv.emit()
           },
@@ -416,6 +463,7 @@ export class WorldEngine {
           return fetch(url, { ...init, credentials: 'omit' })
         },
       },
+      screenShare: this.screenShare,
       pickFile: (req: FileRequest) => uiBridge.pickFile(req),
       confirm: (req: ConfirmRequest) => uiBridge.confirm(req),
       prompt: (req: PromptRequest) => uiBridge.prompt(req),
@@ -468,7 +516,27 @@ export class WorldEngine {
 
   dispose() {
     if (this.player.sitting) this.stand()
+    this.screenShare.dispose()
+    if (this.session.get(`sys:avatarMotion:${this.session.selfId}`)) this.session.set(`sys:avatarMotion:${this.session.selfId}`, null)
     this.voice.dispose()
+  }
+
+  avatarMotion(peerId: string) {
+    const key = `sys:avatarMotion:${peerId}`
+    const raw = this.session.get(key)
+    if (!raw || typeof raw !== 'object') return null
+    let value = this.avatarMotionCache.get(raw)
+    if (value === undefined) {
+      value = isAvatarMotionState(raw) ? makeAvatarMotionState(raw.mode, raw.frames, raw.startedAt, raw.weight, raw.loop) : null
+      this.avatarMotionCache.set(raw, value)
+    }
+    if (!value) return null
+    if (peerId === this.session.selfId && value.mode === 'motion' && !value.loop &&
+      this.session.clock.now() >= value.startedAt + value.frames[value.frames.length - 1].at) {
+      this.session.set(key, null)
+      return null
+    }
+    return value
   }
 }
 

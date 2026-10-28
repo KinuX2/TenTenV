@@ -4,7 +4,6 @@
 // エラー: HTTP 4xx/5xx + ApiError
 //
 // GET    /api/info                                → ServerInfo
-// POST   /api/auth/guest        {displayName}     → {token, me: MeInfo}
 // POST   /api/auth/misskey/start {host, callback} → {url, session}
 // POST   /api/auth/misskey/finish {session}       → {token, me: MeInfo}
 // POST   /api/auth/logout

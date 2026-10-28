@@ -11,10 +11,8 @@ export interface ServerConfig {
   dataDir: string
   name: string
   description: string
+  branding: { siteName: string; logoFile: string | null; logoLayout: 'icon' | 'wide' }
   termsUrl: string | null
-  allowGuest: boolean
-  /** ゲストにアバター・ワールドのアップロードを許すか */
-  allowGuestUploads: boolean
   misskey: { enabled: boolean; allowedHosts: string[] | null }
   limits: { avatarBytes: number; worldBytes: number; uploadBytes: number; instanceFileBytes: number; maxInstanceCapacity: number }
   relay: boolean
@@ -42,9 +40,8 @@ export const defaultConfig = (dataDir = DEFAULT_DATA_DIR): ServerConfig => ({
   dataDir,
   name: 'TenTenV Server',
   description: '',
+  branding: { siteName: 'TenTenV', logoFile: null, logoLayout: 'icon' },
   termsUrl: null,
-  allowGuest: true,
-  allowGuestUploads: true,
   misskey: { enabled: true, allowedHosts: null },
   limits: { avatarBytes: 100 * MB, worldBytes: 300 * MB, uploadBytes: 3 * 1024 * MB, instanceFileBytes: 50 * MB, maxInstanceCapacity: 40 },
   relay: true,
@@ -66,10 +63,15 @@ export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): 
   str('name')
   str('description')
   str('publicUrl')
+  if (isObj(over.branding)) {
+    if (typeof over.branding.siteName === 'string' && over.branding.siteName.trim()) out.branding.siteName = over.branding.siteName.trim().slice(0, 80)
+    if (over.branding.logoFile === null || typeof over.branding.logoFile === 'string') out.branding.logoFile = over.branding.logoFile || null
+    if (over.branding.logoLayout === 'icon' || over.branding.logoLayout === 'wide') out.branding.logoLayout = over.branding.logoLayout
+  }
   if (typeof over.port === 'number') out.port = over.port
   if (typeof over.dataDir === 'string') out.dataDir = resolve(over.dataDir)
   if (typeof over.termsUrl === 'string' || over.termsUrl === null) out.termsUrl = (over.termsUrl as string | null) || null
-  for (const k of ['allowGuest', 'allowGuestUploads', 'relay', 'trustProxy'] as const) if (typeof over[k] === 'boolean') out[k] = over[k] as boolean
+  for (const k of ['relay', 'trustProxy'] as const) if (typeof over[k] === 'boolean') out[k] = over[k] as boolean
   if (isObj(over.misskey)) {
     if (typeof over.misskey.enabled === 'boolean') out.misskey.enabled = over.misskey.enabled
     const h = over.misskey.allowedHosts
@@ -95,7 +97,7 @@ export const loadConfig = (env = process.env): ServerConfig => {
   if (existsSync(file)) {
     let raw: unknown
     try {
-      raw = JSON.parse(readFileSync(file, 'utf8'))
+      raw = JSON.parse(readFileSync(file, 'utf8').replace(/^\uFEFF/, ''))
     } catch (e) {
       throw new Error(`${file} を読めません: ${(e as Error).message}`)
     }
@@ -104,6 +106,7 @@ export const loadConfig = (env = process.env): ServerConfig => {
   if (env.TTV_PORT) cfg.port = Number(env.TTV_PORT) || cfg.port
   if (env.TTV_DATA) cfg.dataDir = dataDir
   if (env.TTV_PUBLIC_URL) cfg.publicUrl = env.TTV_PUBLIC_URL
+  if (cfg.branding.logoFile) cfg.branding.logoFile = resolve(dirname(file), cfg.branding.logoFile)
   cfg.publicUrl = cfg.publicUrl.trim().replace(/\/+$/, '')
   if (cfg.publicUrl) {
     try {

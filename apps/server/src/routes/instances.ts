@@ -107,7 +107,6 @@ export const instanceRoutes = (app: App) => {
     const manifest = parseJson<{ maxCapacity?: number }>(w.manifest, {})
     const capacity = field.int(b, 'capacity', 1, max) ?? Math.min(max, Math.max(1, manifest.maxCapacity ?? 16))
     const persistent = field.bool(b, 'persistent') ?? false
-    if (persistent && me.is_guest) throw forbidden('ゲストは残り続けるインスタンスを作れません')
     let name = field.str(b, 'name', 64) ?? ''
     if (hasControlChars(name)) throw badRequest('名前に使えない文字が含まれています')
     if (!name) name = `${me.display_name} のインスタンス`

@@ -14,6 +14,7 @@ interface Peer {
   r: RTCDataChannel | null
   u: RTCDataChannel | null
   audio: RTCRtpSender | null
+  video: RTCRtpSender | null
   state: LinkState
   /** P2P をあきらめて中継を使う */
   relay: boolean
@@ -43,9 +44,12 @@ export class MeshTransport implements Transport {
   private uEv = new Emitter<[string, ArrayBuffer]>()
   private peerEv = new Emitter<[{ kind: 'join' | 'leave' | 'link'; peerId: string }]>()
   private audioEv = new Emitter<[string, MediaStream]>()
+  private videoEv = new Emitter<[string, MediaStream]>()
+  private remoteVideo = new Map<string, MediaStream>()
   private serverEv = new Emitter<[boolean]>()
   private offs: (() => void)[] = []
   private track: MediaStreamTrack | null = null
+  private videoTrack: MediaStreamTrack | null = null
   private closed = false
   /** 中継で送る信頼性なしのメッセージの数（毎秒 120 通まで） */
   private relayU = new RateLimiter(120, 1000)
@@ -87,7 +91,7 @@ export class MeshTransport implements Transport {
     if (desc.peerId === this.selfId || this.closed) return
     const old = this.peersMap.get(desc.peerId)
     if (old) this.closePeer(old)
-    const p: Peer = { desc, pc: null, r: null, u: null, audio: null, state: 'connecting', relay: false, timer: null, pendingIce: [], makingOffer: false, rtt: null, lostAt: null }
+    const p: Peer = { desc, pc: null, r: null, u: null, audio: null, video: null, state: 'connecting', relay: false, timer: null, pendingIce: [], makingOffer: false, rtt: null, lostAt: null }
     this.peersMap.set(desc.peerId, p)
     if (desc.hidden) {
       // ブロック関係: 何もつながない
@@ -148,9 +152,16 @@ export class MeshTransport implements Transport {
     const tr = pc.addTransceiver('audio', { direction: 'sendrecv' })
     p.audio = tr.sender
     if (this.track) void tr.sender.replaceTrack(this.track)
+    const video = pc.addTransceiver('video', { direction: 'sendrecv' })
+    p.video = video.sender
+    if (this.videoTrack) void video.sender.replaceTrack(this.videoTrack)
     pc.ontrack = (e) => {
       const stream = e.streams[0] ?? new MediaStream([e.track])
-      this.audioEv.emit(p.desc.peerId, stream)
+      if (e.track.kind === 'video') {
+        this.remoteVideo.set(p.desc.peerId, stream)
+        this.videoEv.emit(p.desc.peerId, stream)
+      }
+      else this.audioEv.emit(p.desc.peerId, stream)
     }
     pc.onicecandidate = (e) => {
       if (e.candidate) this.o.signal.send({ t: 'signal', to: p.desc.peerId, data: { kind: 'ice', candidate: e.candidate.candidate, sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex } })
@@ -260,6 +271,7 @@ export class MeshTransport implements Transport {
     if (!p) return
     this.closePeer(p)
     this.peersMap.delete(peerId)
+    this.remoteVideo.delete(peerId)
     this.peerEv.emit({ kind: 'leave', peerId })
   }
 
@@ -326,6 +338,11 @@ export class MeshTransport implements Transport {
   onRemoteAudio(cb: (peerId: string, stream: MediaStream) => void) {
     return this.audioEv.on(cb)
   }
+  onRemoteVideo(cb: (peerId: string, stream: MediaStream) => void) {
+    const off = this.videoEv.on(cb)
+    for (const [peerId, stream] of this.remoteVideo) cb(peerId, stream)
+    return off
+  }
   onServer(cb: (up: boolean) => void) {
     return this.serverEv.on(cb)
   }
@@ -333,6 +350,10 @@ export class MeshTransport implements Transport {
   setAudioTrack(track: MediaStreamTrack | null) {
     this.track = track
     for (const p of this.peersMap.values()) if (p.audio) void p.audio.replaceTrack(track).catch(() => {})
+  }
+  setVideoTrack(track: MediaStreamTrack | null) {
+    this.videoTrack = track
+    for (const p of this.peersMap.values()) if (p.video) void p.video.replaceTrack(track).catch(() => {})
   }
 
   private async measure() {
@@ -355,5 +376,6 @@ export class MeshTransport implements Transport {
     this.offs.forEach((f) => f())
     for (const p of this.peersMap.values()) this.closePeer(p)
     this.peersMap.clear()
+    this.remoteVideo.clear()
   }
 }

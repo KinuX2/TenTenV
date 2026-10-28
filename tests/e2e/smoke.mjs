@@ -1,8 +1,9 @@
-// ブラウザでの動作確認: ゲストでログイン → ワールドを開く → 2 人で同じインスタンスに入る → 互いが見えるか
+// ブラウザでの動作確認: ログイン → ワールドを開く → 2 人で同じインスタンスに入る → 互いが見えるか
 // 使い方: node tests/e2e/smoke.mjs [クライアントの URL] [ワールド名] [出力フォルダ]
 import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = process.argv[3] ?? 'テンプレートワールド'
@@ -19,13 +20,11 @@ const browser = await chromium.launch({
 const logs = []
 const open = async (name, link) => {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 760 }, permissions: ['microphone', 'camera'] })
+  await prepareTestLogin(ctx, name, link ?? CLIENT)
   const page = await ctx.newPage()
   page.on('console', (m) => logs.push(`[${name}] ${m.type()}: ${m.text()}`))
   page.on('pageerror', (e) => logs.push(`[${name}] pageerror: ${e.message}\n${e.stack}`))
   await page.goto(link ?? CLIENT)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!link) await page.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return page
 }

@@ -1,6 +1,7 @@
 // DJ ラウンジの確認（開発ビルド用）: 2 人で入り、Alice がデッキを操作すると Bob の同期状態も変わるか
 // 使い方: node tests/e2e/dj.mjs [クライアントの URL]
 import { chromium } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const browser = await chromium.launch({
@@ -16,12 +17,10 @@ const check = (label, cond, detail = '') => {
 const errors = []
 const open = async (name, link) => {
   const ctx = await browser.newContext({ viewport: { width: 900, height: 600 } })
+  await prepareTestLogin(ctx, name, link ?? CLIENT)
   const page = await ctx.newPage()
   page.on('pageerror', (e) => errors.push(`[${name}] ${e.message}`))
   await page.goto(link ?? CLIENT)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!link) await page.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return page
 }

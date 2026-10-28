@@ -38,7 +38,7 @@ export const startMiAuth = (app: App, hostIn: unknown, callback: unknown) => {
   const now = Date.now()
   app.db.run('DELETE FROM miauth_sessions WHERE created_at < ?', now - SESSION_TTL)
   app.db.run('INSERT INTO miauth_sessions (session, host, created_at) VALUES (?, ?, ?)', session, host, now)
-  const q = new URLSearchParams({ name: 'TenTenV', callback: cb.toString(), permission: 'read:account' })
+  const q = new URLSearchParams({ name: app.config.branding.siteName, callback: cb.toString(), permission: 'read:account' })
   return { url: `https://${host}/miauth/${session}?${q}`, session }
 }
 

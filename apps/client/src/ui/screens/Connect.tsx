@@ -7,6 +7,7 @@ import { L, setLang, useLang } from '../../i18n'
 import { useApp } from '../../state/app'
 import { startSignal } from '../../state/net'
 import { Icon } from '../icons'
+import { Brand } from '../Brand'
 
 const normalize = (u: string) => {
   let s = u.trim()
@@ -28,19 +29,18 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
   const [url, setUrl] = useState(initialServer ?? servers[0]?.url ?? DEFAULT_SERVER)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [name, setName] = useState(() => localStorage.getItem('ttv.guestName') ?? '')
   const [host, setHost] = useState(() => localStorage.getItem('ttv.misskeyHost') ?? 'misskey.io')
   const [devUrl, setDevUrl] = useState('http://localhost:5180/')
   const [linkedServer] = useState(() => initialServer ?? new URLSearchParams(location.search).get('server'))
 
-  const connect = async (target: string) => {
+  const connect = async (target: string, knownInfo?: ServerInfo) => {
     const u = normalize(target)
     if (!u) return
     setBusy(true)
     setErr(null)
     try {
       const a = new Api(u, null)
-      const inf: ServerInfo = await a.info()
+      const inf: ServerInfo = knownInfo ?? await a.info()
       if (inf.protocol !== PROTOCOL_VERSION) throw new Error(L(`この親サーバーは通信の版が違います（${inf.protocol}）`, `Protocol mismatch (${inf.protocol})`))
       useApp.getState().connect(u, inf)
       // 保存したトークンでそのまま入る
@@ -57,7 +57,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
         } catch (e) {
           api2.setToken(null)
           setErr(e instanceof ApiError && e.status === 401
-            ? L('前回のログインを復元できません。ゲストで入り直すと別のアカウントになり、以前のアップロードは表示されません。', 'The saved sign-in could not be restored. Signing in as a guest creates a different account, so earlier uploads will not appear.')
+            ? L('前回のログインを復元できません。Misskey でログインし直してください。', 'The saved sign-in could not be restored. Please sign in with Misskey again.')
             : L('前回のログインを確認できません。接続先と通信状態を確認してください。', 'Could not verify the saved sign-in. Check the server and connection.'))
         }
       }
@@ -103,27 +103,16 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
     if (linkedServer) {
       setUrl(normalize(linkedServer))
       void connect(linkedServer)
+    } else if (!import.meta.env.DEV && /^https?:$/.test(location.protocol)) {
+      void new Api(location.origin, null).info().then((inf) => {
+        if (inf?.protocol === PROTOCOL_VERSION) {
+          setUrl(location.origin)
+          void connect(location.origin, inf)
+        } else if (servers[0]) void connect(servers[0].url)
+      }).catch(() => { if (servers[0]) void connect(servers[0].url) })
     } else if (servers[0]) void connect(servers[0].url)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const guest = async () => {
-    if (!api) return
-    const n = name.trim() || `Guest${Math.floor(Math.random() * 9000 + 1000)}`
-    setBusy(true)
-    setErr(null)
-    try {
-      localStorage.setItem('ttv.guestName', n)
-      const r = await api.guest(n)
-      useApp.getState().login(r.token, r.me)
-      startSignal()
-      useApp.getState().setScreen({ kind: 'home' })
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const misskey = async () => {
     if (!api) return
@@ -148,10 +137,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
       <div className="center-wrap">
         <div className="card connect-card">
           <div className="row">
-            <div className="brand grow">
-              <img src="/icon.svg" alt="" />
-              TenTenV
-            </div>
+            <Brand info={info} server={api?.base ?? null} className="brand grow" />
             <button className="btn small" onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}>
               {lang === 'ja' ? 'English' : '日本語'}
             </button>
@@ -235,17 +221,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
                   <div className="muted small">{L('パスワードはこの親サーバーに送られません。Misskey の画面で許可してください。', 'Your password is never sent to this server.')}</div>
                 </div>
               )}
-              {info.auth.guest && (
-                <div className="col">
-                  <div className="section-title">{L('ゲストで入る', 'Continue as guest')}</div>
-                  <div className="row">
-                    <input className="input grow" value={name} maxLength={32} onChange={(e) => setName(e.target.value)} placeholder={L('表示名', 'Display name')} onKeyDown={(e) => e.key === 'Enter' && void guest()} />
-                    <button className="btn" disabled={busy} onClick={() => void guest()}>
-                      {L('入る', 'Enter')}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {!info.auth.misskey && <div className="muted">{L('この親サーバーではログインを利用できません。', 'Sign-in is unavailable on this server.')}</div>}
             </>
           )}
           {err && <div className="err">{err}</div>}

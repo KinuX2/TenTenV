@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { WebSocketServer } from 'ws'
 import type { ServerConfig } from './config'
 import { Db } from './db'
-import { serveClient, serveFile } from './files'
+import { serveBrandLogo, serveClient, serveFile } from './files'
 import { seedWorlds } from './seed'
 import { clientIp, corsHeaders, HttpError, KeyedLimiter, Reply, Router, sendError, sendJson, wasAborted, type Req } from './http'
 import { Hub } from './hub'
@@ -136,6 +136,7 @@ export class App {
       return res.end()
     }
     const path = url.pathname
+    if (path === '/branding/logo') return serveBrandLogo(this.config.branding.logoFile, req, res)
     if (path.startsWith('/files/')) return serveFile(this, req, res, path)
     if (!path.startsWith('/api/') && path !== '/api') {
       // クライアントの画面（ビルドしたもの）を配信する

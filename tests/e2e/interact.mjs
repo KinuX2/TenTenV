@@ -1,6 +1,7 @@
 // 操作の同期の確認（開発ビルド用）: Alice がライトを押す → Bob にも反映 / Alice が箱をつかむ → Bob から見て持ち主が Alice
 // 使い方: node tests/e2e/interact.mjs [クライアントの URL]（ワールドは「テンプレートワールド」）
 import { chromium } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = 'テンプレートワールド'
@@ -16,11 +17,9 @@ const check = (label, cond, detail = '') => {
 }
 const open = async (name, link) => {
   const ctx = await browser.newContext({ viewport: { width: 1000, height: 640 } })
+  await prepareTestLogin(ctx, name, link ?? CLIENT)
   const page = await ctx.newPage()
   await page.goto(link ?? CLIENT)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!link) await page.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return page
 }

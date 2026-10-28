@@ -13,6 +13,7 @@ services:
     volumes:
       - tentenv-data:/data
       - ./deploy/compose.config.json:/app/compose.config.json:ro
+      - ./deploy/branding:/app/branding:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/info').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s

@@ -1,6 +1,7 @@
 // スマホの確認: 画面の幅・タッチ操作・仮想スティック
 // 使い方: node tests/e2e/mobile.mjs [クライアントの URL] [ワールド名] [出力の頭]
 import { chromium, devices } from 'playwright-core'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = process.argv[3] ?? 'テンプレートワールド'
@@ -17,14 +18,12 @@ const check = (label, cond, detail = '') => {
 }
 try {
   const ctx = await browser.newContext({ ...devices['Pixel 7'] })
+  await prepareTestLogin(ctx, 'Phone', CLIENT)
   const p = await ctx.newPage()
   const errors = []
   p.on('pageerror', (e) => errors.push(e.message))
   await p.goto(CLIENT)
   await p.screenshot({ path: `${OUT}-0-connect.png` })
-  await p.getByRole('button', { name: /接続|Connect/ }).click()
-  await p.getByPlaceholder(/表示名|Display name/).fill('Phone')
-  await p.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   await p.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   await p.waitForTimeout(800)
   await p.screenshot({ path: `${OUT}-1-home.png` })

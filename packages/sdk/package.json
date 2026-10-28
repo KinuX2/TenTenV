@@ -1,6 +1,6 @@
 {
   "name": "@tentenv/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TenTenV world SDK: hooks, components, build preset and packaging CLI",
   "license": "AGPL-3.0-only",
   "type": "module",
@@ -8,6 +8,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./motion": "./src/motion.ts",
     "./vite": "./src/build/vite.ts",
     "./tools": "./src/tools/index.ts",
     "./manifest": "./src/tools/manifest.ts"

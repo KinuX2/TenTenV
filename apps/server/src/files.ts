@@ -49,6 +49,37 @@ const MIME: Record<string, string> = {
 
 export const mimeOf = (path: string) => MIME[extname(path).toLowerCase()] ?? 'application/octet-stream'
 
+const BRAND_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml'])
+
+export const brandLogo = (path: string | null) => {
+  if (!path) return null
+  const type = mimeOf(path)
+  if (!BRAND_IMAGE_TYPES.has(type)) return null
+  try {
+    const stat = statSync(path)
+    return stat.isFile() && stat.size <= 2 * 1024 * 1024 ? { path, type, size: stat.size } : null
+  } catch {
+    return null
+  }
+}
+
+export const serveBrandLogo = (path: string | null, req: IncomingMessage, res: ServerResponse) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return sendError(res, 405, 'method_not_allowed', 'このメソッドは使えません')
+  const logo = brandLogo(path)
+  if (!logo) return sendError(res, 404, 'not_found', 'ロゴが見つかりません')
+  res.writeHead(200, {
+    'content-type': logo.type,
+    'content-length': logo.size,
+    'cache-control': 'no-cache',
+    'access-control-allow-origin': '*',
+    'cross-origin-resource-policy': 'cross-origin',
+    'content-security-policy': "default-src 'none'; sandbox",
+    'x-content-type-options': 'nosniff',
+  })
+  if (req.method === 'HEAD') return res.end()
+  createReadStream(logo.path).pipe(res)
+}
+
 /** 利用者が指定した Content-Type を配信用に整える。HTML など危険なものはバイナリ扱いにする */
 export const safeContentType = (t: string | undefined): string => {
   const v = (t ?? '').split(';')[0].trim().toLowerCase()

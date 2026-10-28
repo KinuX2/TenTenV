@@ -1,12 +1,14 @@
 // REST API で受け渡すデータの形。親サーバーとクライアントで共有する
 
 export const PROTOCOL_VERSION = 2
-export const SDK_VERSION = '0.1.0'
+export const SDK_VERSION = '0.1.1'
 
 export interface ServerInfo {
   protocol: number
   name: string
   description: string
+  /** 接続先が公開する画面の名前とロゴ。旧サーバーは省略する */
+  branding?: { siteName: string; logoUrl: string | null; logoLayout?: 'icon' | 'wide' }
   /** 共有リンクで使う、外部から到達できるサーバーの URL */
   publicUrl?: string
   termsUrl: string | null
@@ -14,7 +16,7 @@ export interface ServerInfo {
   publicKey: string
   /** 公開鍵の指紋。親サーバーの識別子として使う */
   serverId: string
-  auth: { guest: boolean; misskey: boolean; misskeyHosts: string[] | null }
+  auth: { misskey: boolean; misskeyHosts: string[] | null }
   limits: {
     avatarBytes: number
     worldBytes: number

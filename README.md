@@ -29,7 +29,7 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 - **画面と VR で同じメニュー**: ワールドの中のメニューは [uikit](https://github.com/pmndrs/uikit) の 3D の UI で、画面でも VR でも同じ部品をそのまま描きます（画面ではカメラの前いっぱい、VR では目の前の空間に置くだけが違う）。
 - **P2P のフルメッシュ**: 1 つのインスタンス（部屋）の全員が WebRTC で直接つながります。P2P がつながらない相手には、親サーバーの WebSocket がデータを中継し、声も Opus に圧縮して中継します（ブラウザの WebCodecs を使用）。
 - **独立した親サーバー**: 親サーバーごとにアカウント・フレンド・ワールドは別々です。親サーバーが署名した参加チケット（Ed25519）を参加者どうしで確かめるので、親サーバーなしでもホストの引き継ぎができます。
-- **Misskey でログイン**: Misskey の MiAuth を使い、パスワードを親サーバーに渡しません。ゲストログインもあります（サーバー設定で無効にできます）。
+- **Misskey でログイン**: Misskey の MiAuth を使い、パスワードを親サーバーに渡しません。
 - **ワールド SDK**: React のフックと部品で、押せる物・つかめる物・椅子・鏡・動画・ポータル・同期する状態・保存するデータなどを作れます。
 - **安全のしくみ**: ミュート・アバターの非表示・ブロック・通報、接触の許可、重すぎるアバターの自動差し替え、ワールドのコードの静的検査とファイルの SHA-256 照合。
 
@@ -48,7 +48,10 @@ docker compose up --build -d
 
 ブラウザで http://localhost:8787 を開けます。Windows クライアントからも同じアドレスに接続できます。状態は `docker compose ps`、ログは `docker compose logs -f server` で確認できます。停止は `docker compose down` です。利用者・ワールド・鍵は Docker volume に残ります。
 
-設定を変えるときは `.env.example` を `.env` にコピーして、待受アドレス・ホスト側ポート・公開 URL を編集します。サーバー名、ゲストログイン、アップロード、人数制限などは [deploy/compose.config.json](deploy/compose.config.json) を編集します。設定変更後は `docker compose up -d --force-recreate` で反映します。公開 URL には利用者から到達できるアドレスを指定してください。インターネット公開時は HTTPS のリバースプロキシを使用し、設定JSONの `trustProxy` を `true` にします。
+設定を変えるときは `.env.example` を `.env` にコピーして、待受アドレス・ホスト側ポート・公開 URL を編集します。サーバー名、アップロード、人数制限などは [deploy/compose.config.json](deploy/compose.config.json) を編集します。設定変更後は `docker compose up -d --force-recreate` で反映します。公開 URL には利用者から到達できるアドレスを指定してください。インターネット公開時は HTTPS のリバースプロキシを使用し、設定JSONの `trustProxy` を `true` にします。
+
+画面の名前とロゴは同じ設定ファイルの `branding` で変更できます。`siteName` を好きな名前にし、ロゴ画像を `deploy/branding/logo.png` に置いて `logoFile` を `/app/branding/logo.png` にすると、接続画面・ホーム画面・共有ページ・ブラウザのタブに反映されます。
+文字入りの横長ロゴを使う場合は、同じ `branding` 内の `logoLayout` を `"wide"` にしてください。画像はリポジトリに追加する必要はなく、Compose が `deploy/branding` を読み取り専用でマウントします。
 
 既存データを消す操作は `docker compose down -v` です。バックアップ時は volume 内の SQLite データベースと鍵も保存してください。
 
@@ -61,7 +64,7 @@ npm run dev:server   # 親サーバー（http://localhost:8787、ファイルを
 npm run dev:client   # 別のターミナルで。クライアント（http://localhost:5190）
 ```
 
-ブラウザで http://localhost:5190 を開き、「接続」→ 表示名を入れて「入る」（ゲスト）を押します。開発中のクライアントは、同じホスト名の 8787 番ポートの親サーバーに接続します。
+ブラウザで http://localhost:5190 を開き、親サーバーに接続して Misskey でログインします。開発中のクライアントは、同じホスト名の 8787 番ポートの親サーバーに接続します。
 
 `npm run seed` は最初の 1 回だけで十分です。親サーバーは初めて起動したときに `apps/server/seed/` の `.ttvw` を標準のワールドとして登録します（`.ttvw` は git に入っていないので、新しく取ってきたときは必ず実行してください）。
 

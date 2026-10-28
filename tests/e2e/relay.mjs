@@ -2,6 +2,7 @@
 // 使い方: node tests/e2e/relay.mjs [クライアントの URL] [ワールド名] [親サーバー URL]（開発ビルドで動かす）
 import { chromium } from 'playwright-core'
 import { mkdirSync } from 'node:fs'
+import { prepareTestLogin } from './auth.mjs'
 
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = process.argv[3] ?? 'テンプレートワールド'
@@ -16,6 +17,7 @@ const browser = await chromium.launch({
 const logs = []
 const open = async (name, blockP2P, link) => {
   const ctx = await browser.newContext({ viewport: { width: 960, height: 600 }, permissions: ['microphone'] })
+  await prepareTestLogin(ctx, name, link ?? CLIENT, SERVER)
   if (blockP2P) await ctx.addInitScript(() => {
     const NativePeerConnection = window.RTCPeerConnection
     window.RTCPeerConnection = class extends NativePeerConnection {
@@ -42,10 +44,6 @@ const open = async (name, blockP2P, link) => {
   page.on('console', (m) => /error|relay|中継/i.test(m.text()) && logs.push(`[${name}] ${m.text()}`))
   page.on('pageerror', (e) => logs.push(`[${name}] pageerror: ${e.message} ${(e.stack ?? '').split(String.fromCharCode(10)).slice(1, 4).join(' | ')}`))
   await page.goto(link ?? CLIENT)
-  await page.getByPlaceholder('https://example.com').fill(SERVER)
-  await page.getByRole('button', { name: /接続|Connect/ }).click()
-  await page.getByPlaceholder(/表示名|Display name/).fill(name)
-  await page.getByRole('button', { name: /^入る$|^Enter$/ }).click()
   if (!link) await page.getByRole('heading', { name: /ワールド|Worlds/ }).waitFor({ timeout: 15000 })
   return page
 }

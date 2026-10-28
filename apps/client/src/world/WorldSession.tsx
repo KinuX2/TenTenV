@@ -120,7 +120,7 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         world = await loadDevWorld(devUrl, (p) => alive && setPhase({ kind: 'loading', progress: p, label: L('ワールドを読み込んでいます', 'Loading world') }))
         if (!alive) return
         manifest = world.manifest
-        const name = localStorage.getItem('ttv.guestName') || `Dev${Math.floor(Math.random() * 900 + 100)}`
+        const name = `Dev${Math.floor(Math.random() * 900 + 100)}`
         const t = new LocalTransport(devUrl, { id: `dev-${name}`, displayName: name, iconUrl: null, status: 'online', statusText: '' })
         session = new InstanceSession({ transport: t, serverKey: null, serverId: null, instanceId: 'dev', serverClock: null, avatar: withScale(a.avatar), allowContact: 'everyone', hostScore: 1 })
         engine = new WorldEngine({ api: null, session, world: { id: `dev:${manifest.name}`, name: manifest.name, baseUrl: world.baseUrl, manifest }, instance: { id: 'dev', persistent: false, worldId: 'dev' }, dev: true }, withScale(a.avatar))

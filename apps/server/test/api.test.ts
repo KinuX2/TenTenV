@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict'
+import { writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { unzipSync } from 'fflate'
-import { api, buildVrm, buildWorldZip, guest, startServer, type TestServer } from './helpers'
+import { api, buildVrm, buildWorldZip, testUser, startServer, type TestServer } from './helpers'
+import { createSession, createUser } from '../src/auth'
 import { unpackWorld } from '../src/sdk'
+import { loadConfig } from '../src/config'
 
 /** Misskey の check API の代わり（テスト用） */
 const stubMisskey = (srv: TestServer) => {
@@ -40,7 +44,7 @@ describe('REST API', () => {
     const limitBytes = worldBytes + avatar.length + 100
     const quotaServer = await startServer({ limits: { uploadBytes: limitBytes } })
     try {
-      const user = await guest(quotaServer, '容量確認')
+      const user = await testUser(quotaServer, '容量確認')
       assert.equal((await api(quotaServer, 'GET', '/api/me/upload-quota')).status, 401)
       const empty = await api(quotaServer, 'GET', '/api/me/upload-quota', { token: user.token })
       assert.deepEqual(empty.data, { usedBytes: 0, limitBytes, avatarBytes: 0, worldBytes: 0 })
@@ -79,26 +83,59 @@ describe('REST API', () => {
     const r = await api(srv, 'GET', '/api/info')
     assert.equal(r.status, 200)
     assert.equal(r.data.protocol, 2)
+    assert.deepEqual(r.data.branding, { siteName: 'TenTenV', logoUrl: null, logoLayout: 'icon' })
     assert.equal(r.data.limits.uploadBytes, 3 * 1024 ** 3)
     assert.equal(r.data.serverId.length, 22)
-    assert.equal(r.data.auth.guest, true)
+    assert.equal('guest' in r.data.auth, false)
     assert.deepEqual(r.data.auth.misskeyHosts, ['misskey.example'])
     assert.equal(r.headers.get('access-control-allow-origin'), '*')
+    assert.equal((await api(srv, 'GET', '/api/worlds')).status, 200)
+    assert.equal((await api(srv, 'GET', `/api/worlds/${r.data.defaultHomeWorldId}`)).status, 200)
   })
 
-  test('ゲストログインとプロフィールの更新', async () => {
-    const bad = await api(srv, 'POST', '/api/auth/guest', { body: { displayName: '' } })
-    assert.equal(bad.status, 400)
-    assert.equal(bad.data.error, 'bad_request')
-    assert.equal((await api(srv, 'POST', '/api/auth/guest', { body: { displayName: 'x'.repeat(40) } })).status, 400)
+  test('サイト名とロゴをサーバー設定から配信する', async () => {
+    const branded = await startServer({ branding: { siteName: 'My World', logoFile: null, logoLayout: 'wide' } })
+    try {
+      const logo = join(branded.app.config.dataDir, 'logo.svg')
+      const image = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><circle cx="1" cy="1" r="1"/></svg>'
+      writeFileSync(logo, image)
+      const configFile = join(dirname(branded.app.config.dataDir), 'server.config.json')
+      writeFileSync(configFile, `\uFEFF${JSON.stringify({ branding: { siteName: 'My World', logoFile: 'data/logo.svg' } })}`)
+      assert.equal(loadConfig({ TTV_CONFIG: configFile, TTV_DATA: branded.app.config.dataDir }).branding.logoFile, logo)
+      branded.app.config.branding.logoFile = logo
+      const info = await api(branded, 'GET', '/api/info')
+      assert.deepEqual(info.data.branding, { siteName: 'My World', logoUrl: '/branding/logo', logoLayout: 'wide' })
+      const res = await fetch(`${branded.url}/branding/logo`)
+      assert.equal(res.status, 200)
+      assert.equal(res.headers.get('content-type'), 'image/svg+xml')
+      assert.equal(await res.text(), image)
+      assert.equal((await fetch(`${branded.url}/branding/logo`, { method: 'HEAD' })).status, 200)
+      const auth = await api(branded, 'POST', '/api/auth/misskey/start', { body: { host: 'misskey.example', callback: 'https://client.example/cb' } })
+      assert.equal(new URL(auth.data.url).searchParams.get('name'), 'My World')
+      branded.app.config.branding.logoFile = join(branded.app.config.dataDir, 'missing.png')
+      assert.equal((await api(branded, 'GET', '/api/info')).data.branding.logoUrl, null)
+      assert.equal((await fetch(`${branded.url}/branding/logo`)).status, 404)
+    } finally {
+      await branded.close()
+    }
+  })
+
+  test('ゲストログインは廃止し、旧ゲストのトークンも使えない', async () => {
+    assert.equal((await api(srv, 'POST', '/api/auth/guest', { body: { displayName: '以前のゲスト' } })).status, 404)
+    const old = createUser(srv.app, { handle: 'guest:legacy-test', displayName: '以前のゲスト', iconUrl: null, isGuest: true })
+    const token = createSession(srv.app, old.id)
+    assert.equal((await api(srv, 'GET', '/api/me', { token })).status, 401)
+  })
+
+  test('認証済み利用者のプロフィールの更新', async () => {
     assert.equal((await api(srv, 'GET', '/api/me')).status, 401)
 
-    const g = await guest(srv, 'ゲスト太郎')
-    assert.equal(g.me.displayName, 'ゲスト太郎')
+    const g = await testUser(srv, '太郎')
+    assert.equal(g.me.displayName, '太郎')
     const me = await api(srv, 'GET', '/api/me', { token: g.token })
     assert.equal(me.status, 200)
-    assert.equal(me.data.isGuest, true)
-    assert.match(me.data.handle, /^guest:/)
+    assert.equal(me.data.isGuest, false)
+    assert.match(me.data.handle, /^@fixture-/)
 
     const p = await api(srv, 'PATCH', '/api/me', {
       token: g.token,
@@ -157,8 +194,8 @@ describe('REST API', () => {
   })
 
   test('フレンド申請と承認・通知・ブロック', async () => {
-    const a = await guest(srv, 'あかり')
-    const b = await guest(srv, 'ぼたん')
+    const a = await testUser(srv, 'あかり')
+    const b = await testUser(srv, 'ぼたん')
     const req1 = await api(srv, 'POST', `/api/friends/${b.me.id}`, { token: a.token })
     assert.deepEqual(req1.data, { state: 'outgoing' })
     const inc = await api(srv, 'GET', '/api/friends/requests', { token: b.token })
@@ -199,8 +236,8 @@ describe('REST API', () => {
   })
 
   test('ワールドのアップロード・配信・更新・書き出し・検索', async () => {
-    const a = await guest(srv, '制作者')
-    const other = await guest(srv, '見る人')
+    const a = await testUser(srv, '制作者')
+    const other = await testUser(srv, '見る人')
     const up = await api(srv, 'POST', '/api/worlds', { token: a.token, raw: buildWorldZip({ name: '星空の部屋', tags: ['Night', 'chill'], description: 'きれいな星' }), type: 'application/zip' })
     assert.equal(up.status, 200, JSON.stringify(up.data))
     const w = up.data
@@ -294,7 +331,7 @@ describe('REST API', () => {
   })
 
   test('アバターのアップロードと利用条件の読み取り', async () => {
-    const a = await guest(srv, 'アバター主')
+    const a = await testUser(srv, 'アバター主')
     const up = await api(srv, 'POST', '/api/avatars?name=%E3%81%A6%E3%81%99%E3%81%A8&isPublic=1&allowCloning=0', { token: a.token, raw: buildVrm('1', 100), type: 'model/gltf-binary' })
     assert.equal(up.status, 200, JSON.stringify(up.data))
     assert.equal(up.data.name, 'てすと')
@@ -339,7 +376,7 @@ describe('REST API', () => {
     const me = await api(srv, 'PATCH', '/api/me', { token: a.token, body: { currentAvatarId: v0.data.id } })
     assert.equal(me.data.currentAvatarId, v0.data.id)
     // 他人の、複製が許されていないアバターは使えない
-    const b = await guest(srv, '他人')
+    const b = await testUser(srv, '他人')
     assert.equal((await api(srv, 'PATCH', '/api/me', { token: b.token, body: { currentAvatarId: up.data.id } })).status, 400)
     assert.equal((await api(srv, 'DELETE', `/api/avatars/${up.data.id}`, { token: b.token })).status, 403)
     assert.equal((await api(srv, 'DELETE', `/api/avatars/${up.data.id}`, { token: a.token })).status, 204)
@@ -349,7 +386,7 @@ describe('REST API', () => {
   test('アップロードの上限', async () => {
     const small = await startServer({ limits: { avatarBytes: 1024 } })
     try {
-      const g = await guest(small, 'x')
+      const g = await testUser(small, 'x')
       const r = await api(small, 'POST', '/api/avatars', { token: g.token, raw: buildVrm('1', 4096) })
       assert.equal(r.status, 413)
       assert.equal(r.data.error, 'too_large')
@@ -359,9 +396,9 @@ describe('REST API', () => {
   })
 
   test('インスタンスの公開範囲（フレンド限定・招待）', async () => {
-    const owner = await guest(srv, 'オーナー')
-    const friend = await guest(srv, 'フレンド')
-    const stranger = await guest(srv, '知らない人')
+    const owner = await testUser(srv, 'オーナー')
+    const friend = await testUser(srv, 'フレンド')
+    const stranger = await testUser(srv, '知らない人')
     await api(srv, 'POST', `/api/friends/${friend.me.id}`, { token: owner.token })
     await api(srv, 'POST', `/api/friends/${owner.me.id}`, { token: friend.token })
     const w = (await api(srv, 'POST', '/api/worlds', { token: owner.token, raw: buildWorldZip({ name: '部屋' }) })).data
@@ -414,8 +451,8 @@ describe('REST API', () => {
   })
 
   test('インスタンス共有ファイル（一覧・ロック・削除）', async () => {
-    const owner = await guest(srv, 'ファイル主')
-    const other = await guest(srv, 'ほかの人')
+    const owner = await testUser(srv, 'ファイル主')
+    const other = await testUser(srv, 'ほかの人')
     const w = (await api(srv, 'POST', '/api/worlds', { token: owner.token, raw: buildWorldZip() })).data
     const inst = (await api(srv, 'POST', '/api/instances', { token: owner.token, body: { worldId: w.id, access: 'public' } })).data
     const meta = encodeURIComponent(JSON.stringify({ kind: 'photo', page: '1' }))
@@ -465,7 +502,7 @@ describe('REST API', () => {
 
   test('ワールドの永続データ（上限・権限）', async () => {
     const author = await misskeyLogin(srv, 'kvauthor')
-    const g = await guest(srv, 'ゲスト')
+    const g = await testUser(srv, 'ゲスト')
     const w = (await api(srv, 'POST', '/api/worlds', { token: author.token, raw: buildWorldZip() })).data
     const base = `/api/storage/${w.id}`
     assert.equal((await api(srv, 'PUT', `${base}/shared/score`, { token: author.token, body: { value: { best: 10, by: '誰か' } } })).status, 204)
@@ -477,8 +514,6 @@ describe('REST API', () => {
     const all = await api(srv, 'GET', `${base}/shared`, { token: g.token })
     assert.deepEqual(all.data.map((x: { key: string }) => x.key), ['count', 'score'])
 
-    // ゲストは書けない
-    assert.equal((await api(srv, 'PUT', `${base}/shared/x`, { token: g.token, body: { value: 1 } })).status, 403)
     // ワールドにいない人も書けない
     const outsider = await misskeyLogin(srv, 'outsider')
     assert.equal((await api(srv, 'PUT', `${base}/shared/x`, { token: outsider.token, body: { value: 1 } })).status, 403)
@@ -522,8 +557,8 @@ describe('REST API', () => {
   test('通報と管理者の対応', async () => {
     const admin = await misskeyLogin(srv, 'admin')
     assert.equal(admin.me.isAdmin, true)
-    const bad = await guest(srv, '荒らし')
-    const reporter = await guest(srv, '通報者')
+    const bad = await testUser(srv, '荒らし')
+    const reporter = await testUser(srv, '通報者')
     assert.equal((await api(srv, 'POST', '/api/reports', { token: reporter.token, body: { targetType: 'user', targetId: bad.me.id, reason: 'spam', detail: '宣伝ばかり' } })).status, 204)
     assert.equal((await api(srv, 'POST', '/api/reports', { token: reporter.token, body: { targetType: 'user', targetId: 'nobody', reason: 'spam', detail: '' } })).status, 404)
     assert.equal((await api(srv, 'POST', '/api/reports', { token: reporter.token, body: { targetType: 'user', targetId: bad.me.id, reason: 'mean' } })).status, 400)
@@ -552,16 +587,13 @@ describe('REST API', () => {
     assert.ok(mgr.get(keep.id))
     mgr.sweep(Date.now() + 25 * 60 * 60_000)
     assert.equal(mgr.get(keep.id), undefined)
-    // ゲストは persistent を作れない
-    const g = await guest(srv, 'ゲスト')
-    assert.equal((await api(srv, 'POST', '/api/instances', { token: g.token, body: { worldId: w.id, access: 'public', persistent: true } })).status, 403)
   })
 
   test('ログインの回数制限（IP ごと）', async () => {
     const s = await startServer({ rateLimits: { authPerMinute: 3 } })
     try {
       const codes = []
-      for (let i = 0; i < 5; i++) codes.push((await api(s, 'POST', '/api/auth/guest', { body: { displayName: `n${i}` } })).status)
+      for (let i = 0; i < 5; i++) codes.push((await api(s, 'POST', '/api/auth/misskey/start', { body: { host: 'misskey.example', callback: 'https://client.example/cb' } })).status)
       assert.deepEqual(codes, [200, 200, 200, 429, 429])
     } finally {
       await s.close()
@@ -569,7 +601,7 @@ describe('REST API', () => {
   })
 
   test('知らない API・メソッド・壊れた JSON', async () => {
-    const g = await guest(srv, 'てすと')
+    const g = await testUser(srv, 'てすと')
     assert.equal((await api(srv, 'GET', '/api/nothing')).status, 404)
     assert.equal((await api(srv, 'DELETE', '/api/info')).status, 405)
     const r = await fetch(srv.url + '/api/me', { method: 'PATCH', headers: { authorization: `Bearer ${g.token}`, 'content-type': 'application/json' }, body: '{oops' })

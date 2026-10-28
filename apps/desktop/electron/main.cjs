@@ -9,7 +9,7 @@
 
 'use strict'
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, powerSaveBlocker, protocol, screen, session, shell } = require('electron')
+const { app, BrowserWindow, Menu, desktopCapturer, dialog, ipcMain, powerSaveBlocker, protocol, screen, session, shell } = require('electron')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -161,8 +161,8 @@ function setupSession() {
   // Electron の名前を含まない、普通の Chrome と同じ UA にする（ログイン画面などのため）
   ses.setUserAgent(ses.getUserAgent().replace(/\s(Electron|TenTenV|tentenv)\/\S+/gi, ''))
 
-  // 権限: クライアントのオリジンにだけ、マイク・カメラ・全画面・マウスロック・クリップボード書き込みを許す
-  const allowed = new Set(['media', 'fullscreen', 'pointerLock', 'clipboard-sanitized-write', 'speaker-selection'])
+  // 権限: クライアントのオリジンにだけ、メディア・画面共有・全画面・マウスロック・クリップボード書き込みを許す
+  const allowed = new Set(['media', 'display-capture', 'fullscreen', 'pointerLock', 'clipboard-sanitized-write', 'speaker-selection'])
   ses.setPermissionRequestHandler((wc, permission, cb, details) => {
     const url = details.requestingUrl || wc.getURL()
     let ok = isTrusted(url) && allowed.has(permission)
@@ -171,6 +171,28 @@ function setupSession() {
     cb(ok)
   })
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => isTrusted(requestingOrigin) && allowed.has(permission))
+  ses.setDisplayMediaRequestHandler(async (request, callback) => {
+    if (!isTrusted(request.securityOrigin) || !request.frame || request.frame !== request.frame.top || !request.videoRequested || request.audioRequested) {
+      callback(null)
+      return
+    }
+    try {
+      const sources = (await desktopCapturer.getSources({ types: ['screen', 'window'] })).slice(0, 16)
+      if (!sources.length) { callback(null); return }
+      const options = {
+        type: 'question', title: '画面共有', message: '共有する画面またはウィンドウを選択',
+        buttons: [...sources.map((source) => source.name), 'キャンセル'],
+        defaultId: sources.length, cancelId: sources.length, noLink: true,
+      }
+      const chosen = mainWindow && !mainWindow.isDestroyed()
+        ? await dialog.showMessageBox(mainWindow, options)
+        : await dialog.showMessageBox(options)
+      callback(chosen.response < sources.length ? { video: sources[chosen.response] } : null)
+    } catch (error) {
+      log('[display-capture] failed', error && error.message)
+      callback(null)
+    }
+  })
   ses.setDevicePermissionHandler(() => false)
   return ses
 }

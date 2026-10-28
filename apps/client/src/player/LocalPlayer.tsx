@@ -447,6 +447,7 @@ const menuInputs = (f: InputFrame) => {
   else if (f.interact) pendingClick.value = true
   if (f.grabToggle) pendingGrab.value = true
   if (f.use) pendingUse.value = true
+  pendingUse.held = f.useHeld
   if (f.holdDistance) pendingWheel.value += f.holdDistance
 }
 
@@ -485,9 +486,11 @@ const readXrInput = (gl: WebGLRenderer, origin: Group) => {
   const frame = gl.xr.getFrame()
   const ref = gl.xr.getReferenceSpace()
   xrInput.active = !!session
+  const prevHeld = { left: xrInput.left.triggerHeld, right: xrInput.right.triggerHeld }
   for (const h of ['left', 'right'] as const) {
     const st = xrInput[h]
     st.connected = false
+    st.triggerHeld = false
     st.triggerDown = st.triggerUp = st.squeezeDown = st.squeezeUp = st.primaryDown = st.secondaryDown = st.stickDown = false
     st.stick.x = st.stick.y = 0
   }
@@ -515,10 +518,11 @@ const readXrInput = (gl: WebGLRenderer, origin: Group) => {
       if (tip && xrSpaceToWorld(gl, tip, origin, tp, q)) st.tipP.copy(tp)
       if (tip && thumb && xrSpaceToWorld(gl, thumb, origin, th, q)) {
         const pinch = MathUtils.clamp(1 - (tp.distanceTo(th) / origin.scale.x - 0.015) / 0.03, 0, 1)
-        const was = st.trigger > 0.8
+        const was = prevHeld[h]
         st.trigger = pinch
-        st.triggerDown = !was && pinch > 0.8
-        st.triggerUp = was && pinch < 0.5
+        st.triggerHeld = was ? pinch >= 0.5 : pinch > 0.8
+        st.triggerDown = !was && st.triggerHeld
+        st.triggerUp = was && !st.triggerHeld
       }
       continue
     }
@@ -529,6 +533,7 @@ const readXrInput = (gl: WebGLRenderer, origin: Group) => {
     const edge = (i: number) => !!b[i] && !pv[i]
     const release = (i: number) => !b[i] && !!pv[i]
     st.trigger = gp.buttons[0]?.value ?? 0
+    st.triggerHeld = !!b[0]
     st.squeeze = gp.buttons[1]?.value ?? 0
     st.triggerDown = edge(0)
     st.triggerUp = release(0)

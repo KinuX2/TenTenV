@@ -40,12 +40,13 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | 項目 | 既定値 | 説明 |
 |---|---|---|
 | `name` | `"TenTenV Server"` | サーバーの名前（クライアントに表示） |
+| `branding.siteName` | `"TenTenV"` | 接続画面・ホーム画面・共有ページ・ブラウザのタブ・認証画面に表示する名前 |
+| `branding.logoFile` | `null` | ロゴ画像のファイル。設定ファイルからの相対パス、または絶対パス。PNG・JPEG・WebP・GIF・AVIF・SVG、最大 2MB。未設定なら標準のアイコン |
+| `branding.logoLayout` | `"icon"` | 正方形ロゴは `"icon"`。文字入りの横長ロゴは `"wide"` にすると縦横比を保って大きく表示し、隣にサイト名を重複表示しません |
 | `description` | `""` | サーバーの説明 |
 | `termsUrl` | `null` | 利用規約の URL |
 | `publicUrl` | `""` | 外から見たこのサーバーの URL（例 `https://vr.example.com`）。ワールドやアバターのファイルの URL に使います。**公開するときは必ず設定してください**。空なら `http://localhost:<port>` |
 | `port` | `8787` | 待ち受けるポート |
-| `allowGuest` | `true` | ゲストログインを許すか |
-| `allowGuestUploads` | `true` | ゲストにアバター・ワールド・共有ファイルのアップロードを許すか。公開サーバーでは `false` を推奨 |
 | `misskey.enabled` | `true` | Misskey でのログインを使うか |
 | `misskey.allowedHosts` | `null` | ログインを許す Misskey サーバー（例 `["misskey.io"]`）。`null` ならどこでも可 |
 | `limits.avatarBytes` | 100MB | アバター（VRM）の上限 |
@@ -54,11 +55,16 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `limits.maxInstanceCapacity` | `40` | インスタンスの定員の上限 |
 | `relay` | `true` | P2P が張れない相手への WebSocket 中継を許すか |
 | `iceServers` | Google の STUN | クライアントに渡す STUN / TURN サーバー |
-| `admins` | `[]` | 管理者（Misskey のハンドル `@name@host` か利用者 ID）。ゲストは管理者になれません |
+| `admins` | `[]` | 管理者（Misskey のハンドル `@name@host` か利用者 ID） |
 | `corsOrigins` | `"*"` | API を呼べるクライアントのオリジン。`"*"` か `["https://client.example"]` のような配列 |
 | `trustProxy` | `false` | リバースプロキシの `X-Forwarded-For` を信用するか（プロキシの後ろに置くときは `true`） |
 | `rateLimits.authPerMinute` | `30` | IP ごとのログインの回数（1 分あたり） |
 | `rateLimits.uploadsPerMinute` | `20` | IP ごとのアップロードの回数（1 分あたり） |
+
+例えば `apps/server/branding/logo.png` を置き、設定ファイルに `"branding": { "siteName": "My World", "logoFile": "./branding/logo.png" }` と書きます。ロゴは公開 URL `/branding/logo` から配信されます。Docker Compose では `deploy/branding/logo.png` を置き、`deploy/compose.config.json` の `logoFile` に `/app/branding/logo.png` を指定します。名前の変更は再起動後、ロゴ画像の差し替えは再読み込み後に反映されます。
+
+文字入りの横長ロゴなら `"logoLayout": "wide"` も指定してください。接続画面では幅を最大 280px、ホームのサイドバーではサイドバー幅に収まる大きさで表示します。画像は切り抜かず、元の縦横比を保ちます。`siteName` はブラウザのタブ名と認証画面にも使われます。
+背景透過の PNG または WebP を使うと、画面の背景色になじみます。運営者が置く画像は `.gitignore` の対象で、リポジトリには含めません。
 
 環境変数でも一部を上書きできます。
 
