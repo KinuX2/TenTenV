@@ -1,6 +1,7 @@
 // WebSocket で受け取るメッセージ（ClientSignal）の厳密な検査。
 // 形が違う・知らない種類・長すぎる文字列はすべて拒否し、検査済みの新しいオブジェクトだけを返す
-import { LIMITS, PEER_MESSAGE_LIMIT, type ClientSignal, type OnlineStatus, type SignalData } from '@tentenv/protocol'
+import { LIMITS, PEER_MESSAGE_LIMIT, type ClientSignal, type OnlineStatus, type SignalData, type RelayChannel } from '@tentenv/protocol'
+import { hasControlChars } from './http'
 
 export const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 export const MAX_SDP = 64 * 1024
@@ -16,6 +17,8 @@ const isStr = (v: unknown, max: number): v is string => typeof v === 'string' &&
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isInt = (v: unknown, min: number, max: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max
 const isId = (v: unknown): v is string => typeof v === 'string' && ID_RE.test(v)
+/** 人に見せる文字列（REST と同じく制御文字・向きを変える記号は拒否する） */
+const isText = (v: unknown, max: number): v is string => isStr(v, max) && !hasControlChars(v)
 
 class Bad extends Error {}
 const need = (cond: boolean, what: string): void => {
@@ -67,19 +70,19 @@ const build = (m: Obj): ClientSignal => {
       return { t: 'signal', to: m.to as string, data: signalData(m.data) }
     case 'relay':
       need(m.to === '*' || isId(m.to), 'to が正しくありません')
-      need(m.ch === 'r' || m.ch === 'u', 'ch が正しくありません')
+      need(m.ch === 'r' || m.ch === 'u' || m.ch === 'v', 'ch が正しくありません')
       need(isStr(m.data, MAX_RELAY_DATA), 'data が正しくありません')
-      return { t: 'relay', to: m.to as string, ch: m.ch as 'r' | 'u', data: m.data as string }
+      return { t: 'relay', to: m.to as string, ch: m.ch as RelayChannel, data: m.data as string }
     case 'status':
       need(typeof m.status === 'string' && STATUSES.includes(m.status as OnlineStatus), 'status が正しくありません')
-      need(m.statusText === undefined || isStr(m.statusText, LIMITS.statusText), 'statusText が正しくありません')
+      need(m.statusText === undefined || isText(m.statusText, LIMITS.statusText), 'statusText が正しくありません')
       return m.statusText === undefined ? { t: 'status', status: m.status as string } : { t: 'status', status: m.status as string, statusText: m.statusText as string }
     case 'p2pfail':
       need(isId(m.peerId), 'peerId が正しくありません')
       return { t: 'p2pfail', peerId: m.peerId as string }
     case 'kick':
       need(isId(m.peerId), 'peerId が正しくありません')
-      need(isStr(m.reason, 200), 'reason が正しくありません')
+      need(isText(m.reason, 200), 'reason が正しくありません')
       return { t: 'kick', peerId: m.peerId as string, reason: m.reason as string }
     case 'renew':
       return { t: 'renew' }

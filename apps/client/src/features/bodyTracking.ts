@@ -2,6 +2,7 @@
 // Windows 版が OpenXR の XR_HTCX_vive_tracker_interaction（SteamVR の Vive トラッカーなど）で読んだ値を、
 // WebXR の拡張 XRFrame.__ttvExtra から受け取る。SteamVR で役割（腰・左足・右足）を割り当てたトラッカーを使う
 import { Matrix4, Quaternion, Vector3, type Object3D, type WebGLRenderer } from 'three'
+import { L } from '../i18n'
 import { uiBridge } from '../ui/bridge'
 
 interface TtvExtra {
@@ -73,7 +74,7 @@ export const readBodyTrackers = (gl: WebGLRenderer, origin: Object3D, bodyYaw: n
   })
   if (!notified) {
     notified = true
-    uiBridge.notify('トラッカーを見つけました。まっすぐ立って、メニューの「トラッカーを合わせる」を押してください')
+    uiBridge.notify(L('トラッカーを見つけました。まっすぐ立って、メニューの「フルトラ調整」を押してください', 'Trackers found. Stand up straight and press "Calibrate body" in the menu'))
   }
   if (wantCalibrate) {
     wantCalibrate = false
@@ -85,7 +86,7 @@ export const readBodyTrackers = (gl: WebGLRenderer, origin: Object3D, bodyYaw: n
       const target = i === 0 ? r.p.clone() : new Vector3(r.p.x, floorY + ankle, r.p.z)
       return { p: target.sub(r.p).applyQuaternion(inv), q: inv.multiply(body) }
     })
-    uiBridge.notify('トラッカーを合わせました')
+    uiBridge.notify(L('トラッカーを合わせました', 'Trackers calibrated'))
   }
   if (!offsets) return null
   const out = raw.map((r, i) => ({ p: offsets![i].p.clone().applyQuaternion(r.q).add(r.p), q: r.q.clone().multiply(offsets![i].q) }))

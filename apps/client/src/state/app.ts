@@ -3,6 +3,7 @@ import type { AvatarRef } from '@tentenv/protocol'
 import type { MeInfo, NotificationEntry, ServerInfo } from '@tentenv/protocol'
 import { create } from 'zustand'
 import { Api, ApiError } from '../api/api'
+import { L } from '../i18n'
 import { outfitTokens } from './avatarExt'
 
 export interface SavedServer {
@@ -133,38 +134,56 @@ export const useApp = create<AppStore>((set, get) => ({
     saveServers(servers)
     const previous = get().avatar
     const remembered = rememberedAvatarSelection(api.base, me.id)
-    const legacyId = previous.kind === 'vrm' && previous.url.startsWith(`${api.base}/`) ? previous.id : null
+    // ファイルの URL はサーバーの公開 URL で届くので、接続に使った URL と違うことがある（LAN の IP・リバースプロキシなど）
+    const publicUrl = get().info?.publicUrl?.replace(/\/+$/, '')
+    const fromServer = (url: string) => url.startsWith(`${api.base}/`) || (!!publicUrl && url.startsWith(`${publicUrl}/`))
+    const legacyId = previous.kind === 'vrm' && fromServer(previous.url) ? previous.id : null
     const selectedId = remembered.found ? remembered.id : me.currentAvatarId ?? legacyId
     const selectedMe = selectedId === me.currentAvatarId ? me : { ...me, currentAvatarId: selectedId }
     // 保存済みのモデルは別のアカウントや親サーバーのものかもしれない。
-    const sameAvatar = previous.kind === 'vrm' && previous.id === selectedId && previous.url.startsWith(`${api.base}/`)
-    set({ servers, me: selectedMe, avatar: selectedId ? (sameAvatar ? previous : DEFAULT_AVATAR) : previous.kind === 'vrm' ? DEFAULT_AVATAR : previous })
-    if (selectedId) {
-      const clearInvalid = () => {
-        const now = get()
-        if (now.api !== api || now.me?.id !== me.id || now.me.currentAvatarId !== selectedId) return
-        now.setAvatar(DEFAULT_AVATAR)
-        now.setMe({ ...now.me, currentAvatarId: null })
-        rememberAvatarSelection(api.base, me.id, null)
-        if (me.currentAvatarId) void api.updateMe({ currentAvatarId: null }).catch(() => {})
+    const sameAvatar = (id: string) => previous.kind === 'vrm' && previous.id === id && fromServer(previous.url)
+    set({ servers, me: selectedMe, avatar: selectedId ? (sameAvatar(selectedId) ? previous : DEFAULT_AVATAR) : previous.kind === 'vrm' ? DEFAULT_AVATAR : previous })
+    const current = (id: string) => get().api === api && get().me?.id === me.id && get().me?.currentAvatarId === id
+    /** 選んでいたアバターが使えない。サーバーに別のアバターが選ばれていればそれを使い、なければ標準のアバターに戻す */
+    const invalid = (id: string) => {
+      const now = get()
+      if (!current(id) || !now.me) return
+      const fallback = me.currentAvatarId
+      if (fallback && fallback !== id) {
+        // ほかの端末で選んだ（まだ使える）アバターを消さない
+        now.setMe({ ...now.me, currentAvatarId: fallback })
+        now.setAvatar(sameAvatar(fallback) ? previous : DEFAULT_AVATAR)
+        restore(fallback)
+        return
       }
-      void api.avatar(selectedId).then(async (avatar) => {
-        if (get().api !== api || get().me?.id !== me.id || get().me?.currentAvatarId !== selectedId) return
+      now.setAvatar(DEFAULT_AVATAR)
+      now.setMe({ ...now.me, currentAvatarId: null })
+      rememberAvatarSelection(api.base, me.id, null)
+      if (fallback) void api.updateMe({ currentAvatarId: null }).catch(() => {})
+    }
+    const restore = (id: string) => {
+      void api.avatar(id).then(async (avatar) => {
+        if (!current(id)) return
         if (avatar.owner.id !== me.id && !(avatar.isPublic && avatar.allowCloning)) {
-          clearInvalid()
+          invalid(id)
           return
         }
         const defaults = outfitTokens(avatar.extensions, new Set((avatar.extensions?.outfits ?? []).filter((o) => o.default).map((o) => o.id)))
-        get().setAvatar({ kind: 'vrm', id: avatar.id, url: api.abs(avatar.fileUrl)!, sha256: avatar.sha256, scale: 1, outfits: sameAvatar ? previous.outfits : defaults })
+        get().setAvatar({ kind: 'vrm', id: avatar.id, url: api.abs(avatar.fileUrl)!, sha256: avatar.sha256, scale: 1, outfits: sameAvatar(id) ? previous.outfits : defaults })
         rememberAvatarSelection(api.base, me.id, avatar.id)
         if (me.currentAvatarId !== avatar.id) await api.updateMe({ currentAvatarId: avatar.id })
       }).catch((e) => {
-        if (e instanceof ApiError && (e.status === 403 || e.status === 404)) clearInvalid()
-        if (get().api === api && get().me?.id === me.id) get().toast(`アバターを復元できません: ${e instanceof Error ? e.message : String(e)}`, 'error')
+        const gone = e instanceof ApiError && (e.status === 403 || e.status === 404)
+        // サーバーに選ばれている別のアバターへ切り替えられるときは、知らせなくてよい
+        const quiet = gone && !!me.currentAvatarId && me.currentAvatarId !== id && current(id)
+        if (gone) invalid(id)
+        if (!quiet && get().api === api && get().me?.id === me.id) get().toast(L(`アバターを復元できません: ${e instanceof Error ? e.message : String(e)}`, `Could not restore your avatar: ${e instanceof Error ? e.message : String(e)}`), 'error')
       })
-    } else if (remembered.found && me.currentAvatarId) {
+    }
+    if (selectedId) restore(selectedId)
+    else if (remembered.found && me.currentAvatarId) {
       void api.updateMe({ currentAvatarId: null }).catch((e) => {
-        if (get().api === api && get().me?.id === me.id) get().toast(`アバターの選択を保存できません: ${e instanceof Error ? e.message : String(e)}`, 'error')
+        if (get().api === api && get().me?.id === me.id) get().toast(L(`アバターの選択を保存できません: ${e instanceof Error ? e.message : String(e)}`, `Could not save your avatar selection: ${e instanceof Error ? e.message : String(e)}`), 'error')
       })
     }
   },

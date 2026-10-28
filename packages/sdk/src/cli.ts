@@ -4,12 +4,12 @@
 //   ttv-world pack [-o out.ttvw] パッケージを作る
 //   ttv-world check              コードの検査だけ
 //   ttv-world upload --server <url> [--token <t>] [--world <id>]   親サーバーへ登録（--world で更新）
-//   ttv-world dev [--port 5180] [--client http://localhost:5190]   変更を見張ってビルドし、クライアントで開く URL を出す
+//   ttv-world dev [--port 5180] [--host 0.0.0.0] [--client http://localhost:5190]   変更を見張ってビルドし、クライアントで開く URL を出す
 import { spawn, spawnSync } from 'node:child_process'
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { createServer } from 'node:http'
+import { createServer, type RequestListener } from 'node:http'
 import { createRequire } from 'node:module'
-import { dirname, extname, join, normalize, resolve } from 'node:path'
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { scanCode } from './tools/scan'
 import { packWorld } from './tools/pack'
 import type { WorldProjectConfig } from './tools/manifest'
@@ -118,15 +118,25 @@ const main = async () => {
     }
     case 'dev': {
       const port = Number(opt('port', '5180'))
+      // 既定ではこの PC の中（127.0.0.1 と ::1）からだけ開ける。ほかの機器（Quest など）から試すときは --host 0.0.0.0
+      const host = opt('host')
       const client = opt('client', 'http://localhost:5190')!
       const dist = join(cwd, 'dist')
       // 変更を見張ってビルドする
       const watcher = spawn(process.execPath, [viteBin(), 'build', '--watch'], { stdio: 'inherit', cwd })
       const types: Record<string, string> = { '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.mp4': 'video/mp4', '.webp': 'image/webp', '.ktx2': 'image/ktx2', '.hdr': 'application/octet-stream' }
-      createServer((req, res) => {
+      const handler: RequestListener = (req, res) => {
         res.setHeader('access-control-allow-origin', '*')
         res.setHeader('cache-control', 'no-store')
-        const path = decodeURIComponent((req.url ?? '/').split('?')[0])
+        let path: string
+        try {
+          path = decodeURIComponent((req.url ?? '/').split('?')[0])
+        } catch {
+          // % の後ろが壊れている URL。例外で dev サーバーごと落ちないように 400 を返す
+          res.statusCode = 400
+          res.end()
+          return
+        }
         if (path === '/world.json') {
           // 開発中は毎回作り直す（ハッシュの検証も本番と同じにする）
           try {
@@ -140,18 +150,34 @@ const main = async () => {
           }
           return
         }
-        const file = normalize(join(dist, path))
-        if (!file.startsWith(dist) || !existsSync(file) || statSync(file).isDirectory()) {
+        // dist の外は読ませない（前方一致だと ../dist-foo/ のような名前の似たフォルダも通るので、相対パスで確かめる）
+        const file = resolve(dist, `.${path}`)
+        const rel = relative(dist, file)
+        if (!rel || rel.startsWith('..') || isAbsolute(rel) || !existsSync(file) || statSync(file).isDirectory()) {
           res.statusCode = 404
           res.end()
           return
         }
         res.setHeader('content-type', types[extname(file).toLowerCase()] ?? 'application/octet-stream')
         createReadStream(file).pipe(res)
-      }).listen(port, () => {
-        console.log(`\nワールドを配信しています: http://localhost:${port}/`)
-        console.log(`クライアントで開く（ローカル・複数タブで多人数テスト）: ${client}/?devWorld=${encodeURIComponent(`http://localhost:${port}/`)}\n`)
-      })
+      }
+      const base = `http://localhost:${port}/`
+      let shown = false
+      for (const h of host ? [host] : ['127.0.0.1', '::1']) {
+        createServer(handler)
+          .on('error', (e: Error) => {
+            // IPv6 が使えない PC では ::1 で待てなくてもよい
+            if (!host && h === '::1') return
+            console.error(`${h}:${port} で待ち受けられません: ${e.message}`)
+            process.exit(1)
+          })
+          .listen(port, h, () => {
+            if (shown) return
+            shown = true
+            console.log(`\nワールドを配信しています: ${base}`)
+            console.log(`クライアントで開く（ローカル・複数タブで多人数テスト）: ${client}/?devWorld=${encodeURIComponent(base)}\n`)
+          })
+      }
       process.on('SIGINT', () => {
         watcher.kill()
         process.exit(0)

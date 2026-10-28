@@ -1,4 +1,5 @@
 import { Emitter } from '../net/transport'
+import { ScreenRelay } from '../net/screenRelay'
 import type { InstanceSession } from '../net/session'
 
 export const SCREEN_SHARE_KEY = 'sys:screenShare'
@@ -21,10 +22,18 @@ interface VideoEntry {
   dispose: () => void
 }
 
-/** One live screen per instance. Capturing always goes through the browser's source picker. */
+/** 中継で受けた映像は、WebRTC の映像と別のキーで持つ */
+const relayKey = (peerId: string) => `relay:${peerId}`
+
+/**
+ * One live screen per instance. Capturing always goes through the browser's source picker.
+ * P2P でつながっている相手には WebRTC の映像、中継でつながっている相手には ScreenRelay（WebCodecs）で届ける
+ */
 export class ScreenShareManager {
   private local: MediaStream | null = null
+  /** キーは peerId（WebRTC）か relay:peerId（中継） */
   private videos = new Map<string, VideoEntry>()
+  private relay: ScreenRelay
   private changed = new Emitter<[]>()
   private offs: (() => void)[] = []
   private version = 0
@@ -32,13 +41,20 @@ export class ScreenShareManager {
   private disposed = false
 
   constructor(private session: InstanceSession) {
+    this.relay = new ScreenRelay(session, () => this.ownerId(), (peerId, stream) => (stream ? this.attach(relayKey(peerId), stream) : this.detach(relayKey(peerId))))
     this.offs.push(session.subscribe(SCREEN_SHARE_KEY, (value) => {
       if (this.local && (!isScreenShareClaim(value) || value.owner !== session.selfId)) this.stopLocal()
+      // 共有している人が変わった・終わったら、中継の受信をやめる
+      const owner = isScreenShareClaim(value) ? value.owner : null
+      for (const key of [...this.videos.keys()]) if (key.startsWith('relay:') && key !== (owner && relayKey(owner))) this.relay.drop(key.slice('relay:'.length))
       this.emit()
     }))
     this.offs.push(session.t.onRemoteVideo((peerId, stream) => this.attach(peerId, stream)))
     this.offs.push(session.t.onPeers((ev) => {
-      if (ev.kind === 'leave') this.detach(ev.peerId)
+      if (ev.kind === 'leave') {
+        this.detach(ev.peerId)
+        this.relay.drop(ev.peerId)
+      } else if (ev.kind === 'link') this.emit()
     }))
     this.offs.push(session.membersEv.on(() => this.emit()))
   }
@@ -61,14 +77,19 @@ export class ScreenShareManager {
   video = () => {
     const owner = this.ownerId()
     if (!owner) return null
-    const entry = this.videos.get(owner)
-    const track = entry?.stream.getVideoTracks()[0]
-    return track?.readyState === 'live' && !track.muted ? entry!.video : null
+    // 中継でつながっている相手は中継の映像を先に、P2P なら WebRTC の映像を先に使う
+    const keys = owner === this.session.selfId ? [owner] : this.session.t.link(owner) === 'relay' ? [relayKey(owner), owner] : [owner, relayKey(owner)]
+    for (const key of keys) {
+      const entry = this.videos.get(key)
+      const track = entry?.stream.getVideoTracks()[0]
+      if (track?.readyState === 'live' && !track.muted) return entry!.video
+    }
+    return null
   }
 
-  private attach(peerId: string, stream: MediaStream) {
-    if (this.disposed || this.videos.get(peerId)?.stream === stream) return
-    this.detach(peerId)
+  private attach(key: string, stream: MediaStream) {
+    if (this.disposed || this.videos.get(key)?.stream === stream) return
+    this.detach(key)
     const video = document.createElement('video')
     video.muted = true
     video.autoplay = true
@@ -84,7 +105,7 @@ export class ScreenShareManager {
     track?.addEventListener('ended', update)
     video.addEventListener('loadedmetadata', update)
     video.addEventListener('resize', update)
-    this.videos.set(peerId, {
+    this.videos.set(key, {
       video, stream,
       dispose: () => {
         track?.removeEventListener('unmute', update)
@@ -99,11 +120,11 @@ export class ScreenShareManager {
     update()
   }
 
-  private detach(peerId: string) {
-    const entry = this.videos.get(peerId)
+  private detach(key: string) {
+    const entry = this.videos.get(key)
     if (!entry) return
     entry.dispose()
-    this.videos.delete(peerId)
+    this.videos.delete(key)
     this.emit()
   }
 
@@ -130,6 +151,9 @@ export class ScreenShareManager {
       track.addEventListener('ended', this.stop, { once: true })
       this.attach(this.session.selfId, stream)
       this.session.t.setVideoTrack(track)
+      // 中継でつながっている相手へは WebCodecs で送る（相手がいるあいだだけ符号化する）
+      const own = this.videos.get(this.session.selfId)
+      if (own) this.relay.startSending(own.video, frameRate)
       try {
         this.session.set(SCREEN_SHARE_KEY, { owner: this.session.selfId, startedAt: Date.now() })
         if (this.ownerId() !== this.session.selfId) throw new Error('画面共有を開始できませんでした')
@@ -148,6 +172,7 @@ export class ScreenShareManager {
     if (!stream) return
     this.local = null
     stream.getVideoTracks()[0]?.removeEventListener('ended', this.stop)
+    this.relay.stopSending()
     this.session.t.setVideoTrack(null)
     this.detach(this.session.selfId)
     stream.getTracks().forEach((t) => t.stop())
@@ -165,6 +190,7 @@ export class ScreenShareManager {
     this.stop()
     this.offs.forEach((off) => off())
     this.offs = []
-    for (const peerId of [...this.videos.keys()]) this.detach(peerId)
+    this.relay.dispose()
+    for (const key of [...this.videos.keys()]) this.detach(key)
   }
 }

@@ -47,6 +47,25 @@ const linkBase = () => {
   return u
 }
 
+/**
+ * リンクの server が、今つないでいる親サーバーか。リンクは公開 URL で作るので、
+ * 接続に使った URL（LAN の IP など）と違っていても、公開 URL が同じなら同じ親サーバー
+ */
+export const isCurrentServer = (server: string | null) => {
+  if (!server) return true
+  const api = app().api
+  if (!api) return false
+  const norm = (u: string) => {
+    try {
+      return new URL(u).origin
+    } catch {
+      return u.replace(/\/+$/, '')
+    }
+  }
+  const publicUrl = app().info?.publicUrl
+  return norm(server) === norm(api.base) || (!!publicUrl && norm(server) === norm(publicUrl))
+}
+
 /** インスタンスを指定しない、ワールド詳細への共有リンク。 */
 export const worldLink = (worldId: string) => {
   const u = linkBase()

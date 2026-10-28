@@ -11,6 +11,7 @@ import { Home } from './ui/screens/Home'
 import { playUiClick } from './ui/clickSound'
 import { LoadingParticles } from './ui/LoadingParticles'
 import { applyBrowserBranding } from './ui/Brand'
+import { isCurrentServer } from './ui/join'
 // 3D の部分は必要になってから読み込む（ホーム画面を速く開くため）
 const WorldSession = lazy(() => import('./world/WorldSession').then((m) => ({ default: m.WorldSession })))
 
@@ -76,7 +77,7 @@ export const App: React.FC = () => {
     if (raw) {
       sessionStorage.removeItem(PENDING_INSTANCE)
       const { inst, server } = JSON.parse(raw) as { inst: string; server: string | null }
-      if (!server || server === api.base) useApp.getState().setScreen({ kind: 'world', instanceId: inst })
+      if (isCurrentServer(server)) useApp.getState().setScreen({ kind: 'world', instanceId: inst })
       else useApp.getState().toast(L('招待リンクは別の親サーバーのものです。親サーバーを切り替えてから開いてください', 'The invite link is for a different server'), 'error')
       return
     }
@@ -84,7 +85,7 @@ export const App: React.FC = () => {
     if (!worldRaw) return
     sessionStorage.removeItem(PENDING_WORLD)
     const { world, server } = JSON.parse(worldRaw) as { world: string; server: string | null }
-    if (!server || server === api.base) useApp.getState().setScreen({ kind: 'home', worldId: world })
+    if (isCurrentServer(server)) useApp.getState().setScreen({ kind: 'home', worldId: world })
     else useApp.getState().toast(L('このリンクは別の親サーバーのワールドです。接続先を切り替えてください', 'This world belongs to a different server'), 'error')
   }, [me, api])
 

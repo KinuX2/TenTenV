@@ -49,6 +49,13 @@ const MIME: Record<string, string> = {
 
 export const mimeOf = (path: string) => MIME[extname(path).toLowerCase()] ?? 'application/octet-stream'
 
+/** ファイルを流す。開くまでに消された・読めないときは接続を切る（error を聞かないとプロセスごと落ちる） */
+const pipeFile = (file: string, res: ServerResponse, range?: { start: number; end: number }) => {
+  const stream = createReadStream(file, range)
+  stream.on('error', () => res.destroy())
+  stream.pipe(res)
+}
+
 const BRAND_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/svg+xml'])
 
 export const brandLogo = (path: string | null) => {
@@ -77,7 +84,7 @@ export const serveBrandLogo = (path: string | null, req: IncomingMessage, res: S
     'x-content-type-options': 'nosniff',
   })
   if (req.method === 'HEAD') return res.end()
-  createReadStream(logo.path).pipe(res)
+  pipeFile(logo.path, res)
 }
 
 /** 利用者が指定した Content-Type を配信用に整える。HTML など危険なものはバイナリ扱いにする */
@@ -182,9 +189,7 @@ export const serveFile = (app: App, req: IncomingMessage, res: ServerResponse, p
   headers['content-length'] = String(size ? end - start + 1 : 0)
   res.writeHead(status, headers)
   if (req.method === 'HEAD' || size === 0) return res.end()
-  const stream = createReadStream(file, { start, end })
-  stream.on('error', () => res.destroy())
-  stream.pipe(res)
+  pipeFile(file, res, { start, end })
 }
 
 /** クライアントの画面（ビルドしたもの）。ファイルがなければ index.html を返す（画面の切り替えはクライアントがする） */
@@ -226,5 +231,5 @@ export const serveClient = (root: string, req: IncomingMessage, res: ServerRespo
     'x-content-type-options': 'nosniff',
   })
   if (req.method === 'HEAD') return res.end()
-  createReadStream(file).pipe(res)
+  pipeFile(file, res)
 }

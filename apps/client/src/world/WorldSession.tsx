@@ -103,7 +103,6 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
   useEffect(() => {
     setPhase({ kind: 'joining' })
     setWorldError(null)
-    setExt(null)
     let alive = true
     let session: InstanceSession | null = null
     let engine: WorldEngine | null = null
@@ -169,9 +168,6 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
         }
         window.addEventListener('ttv-kick', onKick)
         offs.push(() => window.removeEventListener('ttv-kick', onKick))
-        // 自分のアバターの拡張定義（ジェスチャーの割り当て）
-        if (a.avatar.kind === 'vrm') void api.avatar(a.avatar.id).then((x) => alive && (setExt(x.extensions), useAvatarExt.getState().set(x.extensions))).catch(() => {})
-        else useAvatarExt.getState().set(null)
       }
       if (!alive || !engine || !session) return
       engineRef.current = engine
@@ -248,6 +244,24 @@ export const WorldSession: React.FC<{ instanceId?: string; devUrl?: string }> = 
       window.dispatchEvent(new Event('ttv-avatar-changed'))
     }
   }, [avatar])
+
+  // 自分のアバターの拡張定義（ジェスチャーの割り当て・衣装・アクションメニュー）。入った後に着替えても読み直す
+  const extAvatarId = avatar.kind === 'vrm' ? avatar.id : null
+  useEffect(() => {
+    setExt(null)
+    useAvatarExt.getState().set(null)
+    const api = app().api
+    if (devUrl || !api || !extAvatarId) return
+    let alive = true
+    void api.avatar(extAvatarId).then((x) => {
+      if (!alive) return
+      setExt(x.extensions)
+      useAvatarExt.getState().set(x.extensions, extAvatarId, useApp.getState().avatar.outfits)
+    }).catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [extAvatarId, devUrl, target])
 
   // ホームワールドへ（メニューから）
   useEffect(() => {

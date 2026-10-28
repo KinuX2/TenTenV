@@ -55,6 +55,9 @@ export const defaultConfig = (dataDir = DEFAULT_DATA_DIR): ServerConfig => ({
 })
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+/** 1 以上の整数（上限・回数に使う。0 や負の数・小数は無視する） */
+const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 1
+const isPort = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 65535
 
 /** 既定値に部分的な設定を重ねる（型の違う値は無視する） */
 export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): ServerConfig => {
@@ -68,7 +71,7 @@ export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): 
     if (over.branding.logoFile === null || typeof over.branding.logoFile === 'string') out.branding.logoFile = over.branding.logoFile || null
     if (over.branding.logoLayout === 'icon' || over.branding.logoLayout === 'wide') out.branding.logoLayout = over.branding.logoLayout
   }
-  if (typeof over.port === 'number') out.port = over.port
+  if (isPort(over.port)) out.port = over.port
   if (typeof over.dataDir === 'string') out.dataDir = resolve(over.dataDir)
   if (typeof over.termsUrl === 'string' || over.termsUrl === null) out.termsUrl = (over.termsUrl as string | null) || null
   for (const k of ['relay', 'trustProxy'] as const) if (typeof over[k] === 'boolean') out[k] = over[k] as boolean
@@ -78,8 +81,8 @@ export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): 
     if (h === null) out.misskey.allowedHosts = null
     else if (Array.isArray(h)) out.misskey.allowedHosts = h.filter((x): x is string => typeof x === 'string').map((x) => x.toLowerCase())
   }
-  if (isObj(over.limits)) for (const k of Object.keys(out.limits) as (keyof ServerConfig['limits'])[]) if (typeof over.limits[k] === 'number') out.limits[k] = over.limits[k] as number
-  if (isObj(over.rateLimits)) for (const k of Object.keys(out.rateLimits) as (keyof ServerConfig['rateLimits'])[]) if (typeof over.rateLimits[k] === 'number') out.rateLimits[k] = over.rateLimits[k] as number
+  if (isObj(over.limits)) for (const k of Object.keys(out.limits) as (keyof ServerConfig['limits'])[]) if (isCount(over.limits[k])) out.limits[k] = over.limits[k] as number
+  if (isObj(over.rateLimits)) for (const k of Object.keys(out.rateLimits) as (keyof ServerConfig['rateLimits'])[]) if (isCount(over.rateLimits[k])) out.rateLimits[k] = over.rateLimits[k] as number
   if (Array.isArray(over.iceServers)) out.iceServers = over.iceServers.filter((s): s is IceServer => isObj(s) && (typeof s.urls === 'string' || Array.isArray(s.urls)))
   if (Array.isArray(over.admins)) out.admins = over.admins.filter((x): x is string => typeof x === 'string')
   for (const k of ['seedDir', 'clientDir'] as const) if (typeof over[k] === 'string') out[k] = resolve(over[k] as string)
@@ -112,10 +115,11 @@ export const loadConfig = (env = process.env): ServerConfig => {
     try {
       const publicUrl = new URL(cfg.publicUrl)
       if (publicUrl.protocol !== 'http:' && publicUrl.protocol !== 'https:') throw new Error('HTTP(S) が必要です')
-      // ファイル配信を origin 直下に統一する。
+      // ファイル配信を origin 直下に統一する（サブパスへの設置は非対応）。
       cfg.publicUrl = publicUrl.origin
     } catch {
-      throw new Error('TTV_PUBLIC_URL は https://example.com のような有効な HTTP(S) URL にしてください')
+      const from = env.TTV_PUBLIC_URL ? '環境変数 TTV_PUBLIC_URL' : `${file} の publicUrl`
+      throw new Error(`${from} は https://example.com のような有効な HTTP(S) URL にしてください`)
     }
   }
   return cfg

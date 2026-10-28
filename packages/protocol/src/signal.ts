@@ -28,6 +28,9 @@ export interface TicketPayload {
   exp: number
 }
 
+/** 中継のチャンネル */
+export type RelayChannel = 'r' | 'u' | 'v'
+
 export type ClientSignal =
   | { t: 'hello'; token: string; protocol: number }
   | { t: 'ping'; id: number; c: number }
@@ -35,7 +38,8 @@ export type ClientSignal =
   | { t: 'leave' }
   | { t: 'signal'; to: string; data: SignalData }
   /** P2P が使えない相手へ中継してもらう。to が '*' なら自分以外の全員 */
-  | { t: 'relay'; to: string; ch: 'r' | 'u'; data: string }
+  /** ch: r = 確実に届くデータ、u = 姿勢・声など、v = 画面共有の映像（別の帯域で数える） */
+  | { t: 'relay'; to: string; ch: RelayChannel; data: string }
   | { t: 'status'; status: string; statusText?: string }
   /** P2P が張れなかった相手を伝える（サーバーは中継を許可する） */
   | { t: 'p2pfail'; peerId: string }
@@ -61,7 +65,7 @@ export type ServerSignal =
   | { t: 'peer-joined'; peer: PeerDescriptor }
   | { t: 'peer-left'; peerId: string }
   | { t: 'signal'; from: string; data: SignalData }
-  | { t: 'relay'; from: string; ch: 'r' | 'u'; data: string }
+  | { t: 'relay'; from: string; ch: RelayChannel; data: string }
   | { t: 'ticket'; ticket: string }
   | { t: 'notify'; notification: NotificationEntry }
   | { t: 'friend-status'; user: UserSummary; online: boolean; location: { instanceId: string; worldName: string; access: AccessLevel } | null }

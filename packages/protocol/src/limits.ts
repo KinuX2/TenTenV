@@ -16,6 +16,8 @@ export const LIMITS = {
   /** 1 つの WebSocket 接続から受け付けるメッセージ数（1 秒あたり） */
   signalPerSecond: 200,
   relayBytesPerSecond: 64 * 1024,
+  /** 中継の画面共有の映像（1 接続あたり、送り先の数を掛けた量。データの中継とは別に数える） */
+  relayVideoBytesPerSecond: 256 * 1024,
   displayName: 32,
   bio: 1000,
   statusText: 64,

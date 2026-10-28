@@ -13,7 +13,7 @@ import { InteractionSystem } from './interaction'
 import type { LoadedWorld } from './loader'
 import { PickupSystem } from './pickups'
 import { LocalAvatar, RemotePlayers } from './players'
-import { enterVR, xrStore } from './xr'
+import { enterVR, isXRSupported, xrStore } from './xr'
 import { PlatformFeatures } from '../features/PlatformFeatures'
 import { MenuController, WorldMenu } from '../ui/menu/WorldMenu'
 import { useMenu } from '../ui/menuBus'
@@ -27,9 +27,17 @@ xrStore.setController(MenuController)
 const AutoEnterVR: React.FC = () => {
   const attempted = useRef(false)
   useEffect(() => {
-    if (attempted.current) return
-    attempted.current = true
-    if (settings().autoEnterVR && navigator.xr && !xrStore.getState().session) void enterVR()
+    if (attempted.current || !settings().autoEnterVR || !navigator.xr) return
+    // VR の機器がない PC のブラウザでは試さない（失敗して警告が出るだけなので）
+    let alive = true
+    void isXRSupported().then((ok) => {
+      if (!ok || !alive || attempted.current || !settings().autoEnterVR || xrStore.getState().session) return
+      attempted.current = true
+      void enterVR()
+    })
+    return () => {
+      alive = false
+    }
   }, [])
   return null
 }

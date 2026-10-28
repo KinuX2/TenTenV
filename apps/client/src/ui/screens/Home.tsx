@@ -14,6 +14,11 @@ import { goToWorld } from '../join'
 import { Icon } from '../icons'
 import { Brand, brandingOf, fallbackLogoOnError } from '../Brand'
 
+/** Windows 版の最新のリリース（GitHub） */
+const WINDOWS_RELEASE_URL = 'https://github.com/KinuX2/TenTenV/releases/latest'
+/** Windows 版（Electron）の中で開いているか: 同梱のクライアント（app:）か、アプリの XR ブリッジがある */
+const isWindowsApp = () => location.protocol === 'app:' || '__tentenvXR' in window
+
 const AvatarsTab = lazy(() => import('./AvatarsTab').then((m) => ({ default: m.AvatarsTab })))
 
 type Tab = 'worlds' | 'friends' | 'avatars' | 'profile' | 'notifications' | 'create' | 'settings'
@@ -83,6 +88,11 @@ export const Home: React.FC = () => {
           <input type="checkbox" role="switch" checked={autoEnterVR} onChange={(e) => setSettings({ autoEnterVR: e.target.checked })} />
           <span className="home-vr-track" aria-hidden="true" />
         </label>
+        {!isWindowsApp() && (
+          <a className="btn server-box" href={WINDOWS_RELEASE_URL} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit', fontSize: 13, justifyContent: 'center', paddingInline: 8 }}>
+            <Icon name="windows" size={16} /> {L('Windows 版をダウンロード', 'Download for Windows')}
+          </a>
+        )}
         {(me.homeWorldId ?? info?.defaultHomeWorldId) && (
           <button className="btn primary server-box" onClick={() => void goToWorld((me.homeWorldId ?? info?.defaultHomeWorldId)!)}>
             <Icon name="home" size={18} /> {L('ホームへ', 'Go home')}

@@ -128,24 +128,27 @@ export default function World() {
 
 | ルール名 | 検出するもの |
 |---|---|
-| `no-eval` | `eval()` |
-| `no-new-function` | `new Function(...)`・文字列を渡す `Function(...)` |
+| `no-eval` | `eval()`（`window.eval(`・`eval?.(`・`(0, eval)(`・`["eval"]` の形も） |
+| `no-new-function` | `new Function(...)`・`Function(...)`・関数の `constructor` の呼び出し（`(() => {}).constructor(s)`） |
 | `no-string-timeout` | 文字列を渡す `setTimeout` / `setInterval` |
 | `no-javascript-blob` | JavaScript の Blob の作成 |
-| `no-external-import` | 外部 URL からの `import()` |
-| `no-network-without-permission` | SDK を通さない通信（`fetch(`・`XMLHttpRequest`・`new WebSocket(`・`EventSource`・`sendBeacon`） |
+| `no-worker` | `Worker`・`SharedWorker` の作成、`importScripts`（Worker の中からは自由に通信できるため） |
+| `no-external-import` | 外部 URL（`https://`・`//`）からの `import()` |
+| `no-network-without-permission` | SDK を通さない通信（`fetch(`・`window.fetch(` など・`XMLHttpRequest`・`WebSocket(`・`WebTransport(`・`EventSource`・`sendBeacon`・`new Image().src =`・`window.open(`） |
 | `no-rtc-connection` | `RTCPeerConnection`・`RTCDataChannel` |
 | `no-storage-access` | `localStorage`・`sessionStorage` |
-| `no-cookie-access` | `document.cookie` |
+| `no-cookie-access` | `document.cookie`・`cookieStore` |
 | `no-indexeddb-access` | `indexedDB` |
-| `no-dangerous-dom` | `innerHTML`・`outerHTML` への代入、`insertAdjacentHTML`、`document.write`、`<script>` 要素の作成 |
-| `no-navigator-access` | 位置情報・カメラ・マイク・クリップボード・`credentials`・`serviceWorker`・`getUserMedia` |
+| `no-dangerous-dom` | `innerHTML`・`outerHTML` への代入、`insertAdjacentHTML`、`createContextualFragment`、`document.write`、`script`・`iframe`・`object`・`embed` 要素の作成（大文字も）、`srcdoc` |
+| `no-navigator-access` | 位置情報・カメラ・マイク・クリップボード・`credentials`・`serviceWorker`・`getUserMedia`・`getDisplayMedia`（`navigator["…"]` の形も） |
 | `no-sensitive-api-override` | `window.fetch = ...` などの上書き |
-| `no-global-override` | `window.document`・`location`・`top`・`parent`・`__TTV__` の上書き、`location.href =` |
+| `no-global-override` | `window.document`・`location`・`top`・`parent`・`__TTV__` の上書き、ページの移動（`location = url`・`location.href =`・`location.assign(`・`location.replace(`） |
 | `no-prototype-pollution` | 組み込みのプロトタイプの書き換え、`__proto__ =` |
 | `no-obfuscation` | `\xNN` のエスケープが 400 個を超える（難読化の目安） |
 
 通信が必要なら、ルールを緩めるより `useExternal().fetch` を使ってください（6.7）。
+
+検査は文字列のパターンを見るだけなので、どの書き方でも見つけられるわけではありません。逆に、three.js の `DRACOLoader`・`KTX2Loader` のように Worker を使うライブラリをワールドに同梱すると `no-worker` に当たります。その場合は `relaxedRules` に `no-worker` を書いてください。
 
 ---
 
@@ -159,7 +162,7 @@ export default function World() {
 | `ttv-world check` | `dist/world.js` の静的検査だけをする |
 | `ttv-world pack [-o out.ttvw] [--no-build]` | ビルドして `.ttvw`（zip）を作る。`-o` がなければ `<name>.ttvw`（英数字以外は `_` になるので、日本語の名前なら `-o` で指定するのがおすすめ） |
 | `ttv-world upload --server <URL> [--token <t>] [--world <ID>] [--no-build]` | ビルドして親サーバーへ登録する。`--world` を付けるとそのワールドの新しい版として更新する |
-| `ttv-world dev [--port 5180] [--client http://localhost:5190]` | 変更を見張ってビルドし続け、`http://localhost:<port>/` でワールドを配信する。クライアントで開く URL を表示する |
+| `ttv-world dev [--port 5180] [--host 0.0.0.0] [--client http://localhost:5190]` | 変更を見張ってビルドし続け、`http://localhost:<port>/` でワールドを配信する。クライアントで開く URL を表示する。既定ではこの PC の中（`127.0.0.1`・`::1`）からだけ開ける。ほかの機器から試すときは `--host 0.0.0.0` |
 
 `upload` のトークンは、クライアントの「設定 → アカウント・サーバー → 制作者向け」でコピーできるセッショントークンです。環境変数 `TTV_TOKEN` でも渡せます。人に教えないでください。
 
@@ -357,7 +360,7 @@ const ref = useRef<PickupHandle>(null)
 
 - URL は `https://` の直接のファイル（mp4・webm）か HLS（`.m3u8`）で、CORS（ほかのサイトから読み込むことの許可）に対応している必要があります。YouTube などの埋め込み専用の動画は再生できません。
 - ドメインは `permissions.allowedDomains` に書くか、ワールドと同じ親サーバーのファイル（インスタンス共有ファイルなど）を使います。
-- 「ロック」すると、ロックした人とインスタンスの作成者・モデレーターだけが操作できます。ロックした人がいなくなると誰でも操作できます。
+- 「ロック」すると、ロックした人とインスタンスの作成者・モデレーターだけが操作パネルを使えます。ロックした人がいなくなると誰でも操作できます。ロックは操作パネルでの制限で、状態はふつうの同期状態（`w:media:<id>`）なので、改造したクライアントなどからの書き換えまでは防げません。
 - ずれが 0.6 秒を超えると飛び、小さいずれは再生速度を ±4% 変えて合わせます。
 
 同期の状態の形は `MediaState` 型（`url, playing, offset, anchor, loop, lockedBy`）として export しています。
@@ -386,7 +389,7 @@ function SharedStage() {
 
 `useScreenShare()` は `owner`（共有者の `PlayerInfo` または `null`）、`video`（共有映像の `HTMLVideoElement` または `null`）、`isSharing`、`start()`、`stop()` を返します。独自のスクリーンを作る場合は `video` から `VideoTexture` を作れます。`start()` はクリックなどのユーザー操作から直接呼びます。`start({ frameRate: 15 })` のように映像のフレームレート（1〜30、既定 24）を指定できます。画面取得に失敗した場合は Promise が reject されます。ワールドから退出すると共有は終了します。
 
-映像は参加者間の WebRTC 接続で届きます。中継接続の参加者と開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
+映像は、P2P でつながっている参加者には WebRTC で、親サーバーの中継でつながっている参加者には WebCodecs（H.264、使えなければ VP8）で符号化して中継で届きます。中継の映像は帯域を抑えるため、最大 1280×720・15 fps 以下で、中継の相手が増えるほど画質が下がります。WebCodecs が使えないブラウザー同士の中継と、開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
 
 ### `<ImagePanel>`
 
@@ -418,7 +421,7 @@ function SharedStage() {
 
 | props | 既定値 | 説明 |
 |---|---|---|
-| `src` | （必須） | `public/` のファイル名か、`http(s)://` の URL |
+| `src` | （必須） | `public/` のファイル名か、`http(s)://` の URL（外部の URL は `allowedDomains` のドメインだけ。6.7） |
 | `position` | — | 置き場所 |
 | `volume` | `0.6` | 音量 |
 | `loop` | `true` | くり返す |
@@ -528,11 +531,46 @@ useFrame(() => { ref.current!.rotation.y = (clock.now() / 1000) % (Math.PI * 2) 
 
 ### 6.5 プレイヤー
 
-**`usePlayers()`** → `{ local, others, all, host, getPose(peerId) }`
+**`usePlayers()`** → `{ local, others, all, host, getPose(peerId), getAvatarBones(peerId) }`
 
 `PlayerInfo` は `userId`・`peerId`（その入室のあいだだけの接続 ID）・`displayName`・`iconUrl`・`isLocal`・`isHost`・`isGuest`・`role`（`'owner' | 'moderator' | 'member'`）・`device`。ほかの人の `device` は今の版では `'vr'` か `'desktop'` だけです（スマホかどうかは伝わりません）。
 
-`getPose(peerId)` は `PlayerPose`（`position`（足元）・`yaw`・`head`・`leftHand`・`rightHand`・`height`・`eyeHeight`・`grounded`・`sitting`・`velocity`）を返します。`useFrame` の中で呼んでください。
+`getPose(peerId)` は `PlayerPose`（`position`（足元）・`yaw`・`head`・`leftHand`・`rightHand`・`headRotation`・`leftHandRotation`・`rightHandRotation`・`handsTracked`・`height`・`eyeHeight`・`grounded`・`sitting`・`velocity`）を返します。`useFrame` の中で呼んでください。
+
+- `headRotation` は頭（視点）の向き、`leftHandRotation`・`rightHandRotation` は手の向きで、どれもワールドの座標の回転 `[x, y, z, w]`（three.js の `Quaternion` にそのまま渡せる）です。頭の正面は -Z です。
+- 手の向きは、VR ではコントローラーの握り（ハンドトラッキングでは手首）の向きです。PC・スマホでは手を追跡していないので、`handsTracked` が `false` になり、手の位置と向きは頭と同じ値になります。
+
+`getAvatarBones(peerId)` は、表示しているアバターの骨（`AvatarBones`: 骨の名前 → `{ position, quaternion, rotation }`）を返します。遠くて表示していない人・隠した人・読み込み中のアバターは `null` です。
+
+| 値 | 内容 |
+|---|---|
+| `position` | 骨のワールドの位置（m） |
+| `quaternion` | 骨のワールドの向き `[x, y, z, w]`。T ポーズのとき、すべての骨がアバターの体と同じ向きになる（VRM 0.x と 1.0 で同じ値） |
+| `rotation` | 親の骨から見た回転（ラジアン、XYZ 順）。`useAvatarMotion().setPose` と同じ形なので、読んだ値をそのまま渡せる |
+
+読める骨は `AVATAR_BONE_NAMES`（`useAvatarMotion` で動かせる骨と、`leftEye`・`rightEye`・`jaw`）で、アバターにない骨は入りません。値はそのフレームに描いた姿勢で、ワールドの `useFrame` がアバターより先に動くと 1 フレーム前の値になります。
+
+```tsx
+import { useRef } from 'react'
+import type { Mesh } from 'three'
+import { useFrame } from '@react-three/fiber'
+import { usePlayers, useAvatarMotion } from '@tentenv/sdk'
+
+// 相手の右手の先に光を置き、相手の腕の形をまねる
+function Follow({ peerId }: { peerId: string }) {
+  const players = usePlayers()
+  const motion = useAvatarMotion()
+  const light = useRef<Mesh>(null)
+  useFrame(() => {
+    const pose = players.getPose(peerId)
+    if (pose) light.current!.position.set(...pose.rightHand)
+    const bones = players.getAvatarBones(peerId)
+    const arm = bones?.rightUpperArm
+    if (arm && bones.rightLowerArm) motion.setPose({ rightUpperArm: arm.rotation, rightLowerArm: bones.rightLowerArm.rotation })
+  })
+  return <mesh ref={light}><sphereGeometry args={[0.03]} /><meshBasicMaterial color="yellow" /></mesh>
+}
+```
 
 **`useTeleport()`** → `{ teleport(position, yaw?), respawn() }`。`yaw` はラジアンです（`<SpawnPad>` とマニフェストは度なので注意）。
 
@@ -624,7 +662,7 @@ const files = useInstanceFiles()
 - クライアントと同じオリジン、親サーバーのオリジン、ワールドのファイルの URL
 - 利用者が設定で「許可されていないドメインの動画・画像も読み込む」をオンにしているときの `https://` の URL
 
-`<SpatialSound>` は今の版では許可の確認をせずに URL を読み込みます。外部の音を使うときも `allowedDomains` に書いておいてください。
+`<SpatialSound>`・`<MediaScreen>`・`<ImagePanel>` も同じ確認をし、許可されていない URL は読み込みません（`<ImagePanel>` は `blob:` の URL も読み込みます）。外部の音・動画・画像を使うときは `allowedDomains` に書いておいてください。
 
 ### 6.8 ダイアログ
 

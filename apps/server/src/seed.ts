@@ -7,7 +7,6 @@ import { createUser } from './auth'
 import type { UserRow } from './views'
 import { cleanMeta, setTags, storePackage, worldDir } from './routes/worlds'
 import { newId } from './social'
-import { unpackWorld } from './sdk'
 
 const SYSTEM_HANDLE = 'system:tentenv'
 
@@ -38,16 +37,17 @@ export const seedWorlds = (app: App) => {
   const sys = systemUser(app)
   for (const f of files) {
     if (app.db.get('SELECT 1 FROM worlds WHERE seed_file = ?', f)) continue
-    let buf: Uint8Array
+    const id = newId()
+    let stored: ReturnType<typeof storePackage>
     try {
-      buf = new Uint8Array(readFileSync(join(dir, f)))
-      unpackWorld(buf, { maxBytes: app.config.limits.worldBytes })
+      // サムネイルなどの検査は storePackage がする。壊れたファイルは飛ばして起動を続ける
+      stored = storePackage(app, id, 1, new Uint8Array(readFileSync(join(dir, f))))
     } catch (e) {
+      rmSync(worldDir(app, id), { recursive: true, force: true })
       console.warn(`[seed] ${f} を登録できません: ${(e as Error).message}`)
       continue
     }
-    const id = newId()
-    const { manifest, totalBytes } = storePackage(app, id, 1, buf)
+    const { manifest, totalBytes } = stored
     const meta = cleanMeta(manifest)
     const now = Date.now()
     try {

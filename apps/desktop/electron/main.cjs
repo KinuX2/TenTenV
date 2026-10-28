@@ -162,15 +162,48 @@ function setupSession() {
   ses.setUserAgent(ses.getUserAgent().replace(/\s(Electron|TenTenV|tentenv)\/\S+/gi, ''))
 
   // 権限: クライアントのオリジンにだけ、メディア・画面共有・全画面・マウスロック・クリップボード書き込みを許す
+  // ワールドのコードもクライアントと同じオリジンで動くので、黙って許すのはボイスチャットに要るマイクだけにする。
+  // カメラ（クライアントは使わない）は、そのつどダイアログで確かめる
   const allowed = new Set(['media', 'display-capture', 'fullscreen', 'pointerLock', 'clipboard-sanitized-write', 'speaker-selection'])
+  let askingCamera = false
+  const askCamera = async (url) => {
+    // 確認中にまた求められたら（くり返し呼ぶワールドなど）、重ねて出さずに断る
+    if (askingCamera) return false
+    askingCamera = true
+    try {
+      const options = {
+        type: 'warning', title: 'カメラ', message: 'カメラの使用を許可しますか？',
+        detail: `${originOf(url) ?? url} がカメラを使おうとしています。TenTenV 自体はカメラを使いません。ワールドが求めている可能性があります。心当たりがなければ「拒否」を選んでください。`,
+        buttons: ['許可', '拒否'], defaultId: 1, cancelId: 1, noLink: true,
+      }
+      const r = mainWindow && !mainWindow.isDestroyed() ? await dialog.showMessageBox(mainWindow, options) : await dialog.showMessageBox(options)
+      return r.response === 0
+    } catch {
+      return false
+    } finally {
+      askingCamera = false
+    }
+  }
   ses.setPermissionRequestHandler((wc, permission, cb, details) => {
     const url = details.requestingUrl || wc.getURL()
     let ok = isTrusted(url) && allowed.has(permission)
-    if (ok && permission === 'media') ok = (details.mediaTypes ?? []).every((t) => t === 'audio' || t === 'video')
+    if (ok && permission === 'media') {
+      const types = details.mediaTypes ?? []
+      ok = types.every((t) => t === 'audio' || t === 'video')
+      if (ok && types.includes('video')) {
+        void askCamera(url).then((yes) => {
+          if (!yes) log(`[permission] denied camera for ${originOf(url)}`)
+          cb(yes)
+        })
+        return
+      }
+    }
     if (!ok) log(`[permission] denied ${permission} for ${originOf(url)}`)
     cb(ok)
   })
-  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin) => isTrusted(requestingOrigin) && allowed.has(permission))
+  // 問い合わせ（navigator.permissions・デバイス名の取得）では、カメラは許可済みと答えない
+  ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) =>
+    isTrusted(requestingOrigin) && allowed.has(permission) && !(permission === 'media' && details && details.mediaType === 'video'))
   ses.setDisplayMediaRequestHandler(async (request, callback) => {
     if (!isTrusted(request.securityOrigin) || !request.frame || request.frame !== request.frame.top || !request.videoRequested || request.audioRequested) {
       callback(null)
@@ -487,39 +520,59 @@ ipcMain.handle('tentenv:xr', (e, method, ...args) => {
 })
 // ------------------------------------------------------------------ OSC（フェイストラッキング）
 // ページは UDP を受けられないので、ここで受けてクライアントのページへそのまま渡す
+// 受けるのはこの PC の中から送られたものだけ（127.0.0.1）。ほかのプロセスとポートを共有しない（reuseAddr なし）
+const OSC_HOST = '127.0.0.1'
 let osc = null // { socket, port }
-const closeOsc = () => {
-  if (!osc) return
-  try {
-    osc.socket.close()
-  } catch {}
-  osc = null
+// listen と close は順番に 1 つずつ処理する（重なると古いソケットが残り、受け続けてしまうため）
+let oscQueue = Promise.resolve()
+const enqueueOsc = (fn) => {
+  const run = oscQueue.then(fn)
+  oscQueue = run.catch(() => {})
+  return run
 }
-ipcMain.handle('tentenv:osc', (e, method, port) => {
-  if (!mainWindow || e.sender !== mainWindow.webContents || !isTrusted(e.senderFrame ? e.senderFrame.url : '')) throw new Error('forbidden')
-  if (method === 'close') return closeOsc()
-  if (method !== 'listen') throw new Error('unknown method')
-  if (!Number.isInteger(port) || port < 1024 || port > 65535) return { ok: false, error: 'invalid port' }
-  if (osc && osc.port === port) return { ok: true }
-  closeOsc()
-  const socket = require('node:dgram').createSocket({ type: 'udp4', reuseAddr: true })
-  const target = e.sender
-  return new Promise((resolve) => {
-    socket.once('error', (err) => {
-      log('[osc] could not listen on', port, err.message)
+const closeOsc = () =>
+  new Promise((resolve) => {
+    if (!osc) return resolve()
+    const { socket } = osc
+    osc = null
+    try {
+      socket.close(() => resolve())
+    } catch {
+      resolve()
+    }
+  })
+const listenOsc = (port, target) =>
+  new Promise((resolve) => {
+    const socket = require('node:dgram').createSocket({ type: 'udp4' })
+    let bound = false
+    socket.on('error', (err) => {
+      log('[osc] socket error on', port, err.message)
+      if (osc && osc.socket === socket) osc = null
       try {
         socket.close()
       } catch {}
-      resolve({ ok: false, error: err.message })
+      if (!bound) resolve({ ok: false, error: err.message })
     })
     socket.on('message', (msg) => {
       if (msg.length <= 65536 && !target.isDestroyed()) target.send('tentenv:osc-packet', msg)
     })
-    socket.bind(port, () => {
+    socket.bind(port, OSC_HOST, () => {
+      bound = true
       osc = { socket, port }
-      log('[osc] listening on udp', port)
+      log('[osc] listening on udp', `${OSC_HOST}:${port}`)
       resolve({ ok: true })
     })
+  })
+ipcMain.handle('tentenv:osc', (e, method, port) => {
+  if (!mainWindow || e.sender !== mainWindow.webContents || !isTrusted(e.senderFrame ? e.senderFrame.url : '')) throw new Error('forbidden')
+  if (method === 'close') return enqueueOsc(closeOsc).then(() => undefined)
+  if (method !== 'listen') throw new Error('unknown method')
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return { ok: false, error: 'invalid port' }
+  const target = e.sender
+  return enqueueOsc(async () => {
+    if (osc && osc.port === port) return { ok: true }
+    await closeOsc()
+    return listenOsc(port, target)
   })
 })
 

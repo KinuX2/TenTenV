@@ -4,7 +4,7 @@
 // - データチャネルは 2 本（id 0: 信頼性あり・順序あり / id 1: 信頼性なし・順序なし）を最初から決めておく
 // - 音声のトランシーバーも最初から作っておき、マイクを入れたら replaceTrack するだけにする（再交渉しない）
 // - 10 秒たっても P2P が開かなければ、その相手とは中継で話す
-import { binToStr, PEER_MESSAGE_LIMIT, RateLimiter, strToBin, type IceServer, type PeerDescriptor, type PeerMessage, type SignalData } from '@tentenv/protocol'
+import { BINARY_SCREEN, binaryType, binToStr, ByteBucket, LIMITS, PEER_MESSAGE_LIMIT, RateLimiter, SCREEN_FRAGMENT_BYTES, strToBin, type IceServer, type PeerDescriptor, type PeerMessage, type RelayChannel, type SignalData } from '@tentenv/protocol'
 import type { SignalClient } from './signaling'
 import { Emitter, type LinkState, type Transport } from './transport'
 
@@ -53,6 +53,8 @@ export class MeshTransport implements Transport {
   private closed = false
   /** 中継で送る信頼性なしのメッセージの数（毎秒 120 通まで） */
   private relayU = new RateLimiter(120, 1000)
+  /** 中継の画面共有の映像（バイト数。親サーバーの上限より少し控えめに） */
+  private relayV = new ByteBucket(Math.floor(LIMITS.relayVideoBytesPerSecond * 0.9))
   private statsTimer: ReturnType<typeof setInterval>
 
   constructor(private o: MeshOptions) {
@@ -149,12 +151,16 @@ export class MeshTransport implements Transport {
     u.onmessage = (e) => {
       if (e.data instanceof ArrayBuffer && e.data.byteLength <= 2048) this.uEv.emit(p.desc.peerId, e.data)
     }
-    const tr = pc.addTransceiver('audio', { direction: 'sendrecv' })
-    p.audio = tr.sender
-    if (this.track) void tr.sender.replaceTrack(this.track)
-    const video = pc.addTransceiver('video', { direction: 'sendrecv' })
-    p.video = video.sender
-    if (this.videoTrack) void video.sender.replaceTrack(this.videoTrack)
+    // 音声・映像の枠は offer を出す側だけが作る。受ける側は offer の枠を引き取って送る（adoptTransceivers）
+    // （受ける側が自分で addTransceiver した枠は offer と結びつかず、こちらの声や画面が相手に届かない）
+    if (this.isInitiator(p)) {
+      const tr = pc.addTransceiver('audio', { direction: 'sendrecv' })
+      p.audio = tr.sender
+      if (this.track) void tr.sender.replaceTrack(this.track)
+      const video = pc.addTransceiver('video', { direction: 'sendrecv' })
+      p.video = video.sender
+      if (this.videoTrack) void video.sender.replaceTrack(this.videoTrack)
+    }
     pc.ontrack = (e) => {
       const stream = e.streams[0] ?? new MediaStream([e.track])
       if (e.track.kind === 'video') {
@@ -210,6 +216,7 @@ export class MeshTransport implements Transport {
       if (d.kind === 'offer') {
         if (typeof d.sdp !== 'string' || d.sdp.length > 20000) return
         await pc.setRemoteDescription({ type: 'offer', sdp: d.sdp })
+        this.adoptTransceivers(p, pc)
         for (const c of p.pendingIce.splice(0)) await pc.addIceCandidate(c).catch(() => {})
         const ans = await pc.createAnswer()
         await pc.setLocalDescription(ans)
@@ -231,7 +238,23 @@ export class MeshTransport implements Transport {
     }
   }
 
-  private onRelay(from: string, ch: 'r' | 'u', data: string) {
+  /** offer で作られた音声・映像の枠を、受ける側の送信にも使う */
+  private adoptTransceivers(p: Peer, pc: RTCPeerConnection) {
+    for (const t of pc.getTransceivers()) {
+      const kind = t.receiver.track.kind
+      if (kind === 'audio' && !p.audio) {
+        t.direction = 'sendrecv'
+        p.audio = t.sender
+        if (this.track) void t.sender.replaceTrack(this.track).catch(() => {})
+      } else if (kind === 'video' && !p.video) {
+        t.direction = 'sendrecv'
+        p.video = t.sender
+        if (this.videoTrack) void t.sender.replaceTrack(this.videoTrack).catch(() => {})
+      }
+    }
+  }
+
+  private onRelay(from: string, ch: RelayChannel, data: string) {
     const p = this.peersMap.get(from)
     if (!p || p.desc.hidden) return
     // 相手が中継で送ってきたら、こちらからも中継で届く
@@ -247,6 +270,11 @@ export class MeshTransport implements Transport {
       } catch {
         // 壊れたメッセージは捨てる
       }
+    } else if (ch === 'v') {
+      // 画面共有の映像の断片
+      if (data.length > Math.ceil((SCREEN_FRAGMENT_BYTES * 4) / 3) + 8) return
+      const buf = strToBin(data)
+      if (buf && buf.byteLength <= SCREEN_FRAGMENT_BYTES && binaryType(buf) === BINARY_SCREEN) this.uEv.emit(from, buf)
     } else {
       const buf = strToBin(data)
       if (buf && buf.byteLength <= 2048) this.uEv.emit(from, buf)
@@ -313,6 +341,17 @@ export class MeshTransport implements Transport {
   sendU(to: string, buf: ArrayBuffer) {
     const targets = to === '*' ? [...this.peersMap.values()] : [this.peersMap.get(to)].filter((x): x is Peer => !!x)
     let str: string | null = null
+    if (binaryType(buf) === BINARY_SCREEN) {
+      // 画面共有の映像は中継の相手にだけ、別のチャンネル（v）で送る。P2P の相手には WebRTC の映像が届く
+      if (buf.byteLength > SCREEN_FRAGMENT_BYTES) return
+      for (const p of targets) {
+        if (p.desc.hidden || p.state === 'lost' || !p.relay || p.r?.readyState === 'open') continue
+        str ??= binToStr(buf)
+        if (!this.relayV.take(str.length)) continue
+        this.o.signal.send({ t: 'relay', to: p.desc.peerId, ch: 'v', data: str })
+      }
+      return
+    }
     for (const p of targets) {
       if (p.desc.hidden || p.state === 'lost') continue
       if (p.u?.readyState === 'open') {

@@ -10,6 +10,7 @@ import { AvatarPoser, type PoseInput } from './poser'
 import type { AvatarModel } from './types'
 import { applyAvatarMotion, type AvatarMotionState } from './worldMotion'
 import { AVATAR_LIMITS, loadVrmAvatar } from './vrm'
+import { L } from '../i18n'
 import type { VoiceLevel } from '../net/voice'
 
 export interface AvatarFrame {
@@ -91,7 +92,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
     }
     const bundled = avatar?.kind === 'builtin' ? (bundledAvatar(avatar.id) ?? DEFAULT_BUNDLED) : null
     const src = avatar?.kind === 'vrm' ? { url: avatar.url, sha256: avatar.sha256 } : bundled ? { url: bundled.url, sha256: bundled.sha256 } : null
-    if (!avatar || forceFallback || !src) fallback(forceFallback ? '非表示にしています' : null)
+    if (!avatar || forceFallback || !src) fallback(forceFallback ? L('非表示にしています', 'Hidden') : null)
     else {
       loadVrmAvatar(src.url, src.sha256)
         .then((m) => {
@@ -102,7 +103,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
           const over = m.stats.triangles > AVATAR_LIMITS.triangles || m.stats.materials > AVATAR_LIMITS.materials || m.stats.bones > AVATAR_LIMITS.bones
           if (over && !ignoreLimits && !local) {
             m.dispose()
-            fallback(`アバターが重すぎるため標準の姿で表示しています（${m.stats.triangles.toLocaleString()} ポリゴン）`)
+            fallback(L(`アバターが重すぎるため標準の姿で表示しています（${m.stats.triangles.toLocaleString()} ポリゴン）`, `This avatar is too heavy, so it is shown as the default avatar (${m.stats.triangles.toLocaleString()} triangles)`))
             return
           }
           if (avatar.kind === 'vrm') for (const t of avatar.outfits ?? []) m.setNodeVisible(t.replace(/^[+-]/, ''), !t.startsWith('-'))
@@ -110,7 +111,7 @@ export const AvatarView: React.FC<AvatarViewProps> = ({ avatar, local, ignoreLim
         })
         .catch((e) => {
           console.warn('[avatar] 読み込みに失敗', e)
-          if (alive && !isDefault(avatar)) fallback(`アバターを読み込めません: ${e instanceof Error ? e.message : String(e)}`)
+          if (alive && !isDefault(avatar)) fallback(L(`アバターを読み込めません: ${e instanceof Error ? e.message : String(e)}`, `Could not load the avatar: ${e instanceof Error ? e.message : String(e)}`))
         })
     }
     return () => {

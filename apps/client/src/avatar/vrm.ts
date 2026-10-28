@@ -4,6 +4,7 @@ import { Box3, Mesh, Object3D, Vector3, type BufferGeometry, type Material, type
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { LAYERS } from '@tentenv/sdk'
 import { fetchVerified } from '../world/assetCache'
+import { L } from '../i18n'
 import { BONES, type AvatarModel, type BoneName } from './types'
 
 const loader = new GLTFLoader()
@@ -108,7 +109,7 @@ export const AVATAR_LIMITS = { triangles: 150000, materials: 64, bones: 600, byt
 export const parseVrm = async (buf: ArrayBuffer): Promise<VRM> => {
   const gltf = await loader.parseAsync(buf, '')
   const vrm = gltf.userData.vrm as VRM | undefined
-  if (!vrm) throw new Error('VRM ではありません')
+  if (!vrm) throw new Error(L('VRM ではありません', 'Not a VRM file'))
   VRMUtils.removeUnnecessaryVertices(gltf.scene)
   VRMUtils.combineSkeletons(gltf.scene)
   VRMUtils.rotateVRM0(vrm)
@@ -117,7 +118,7 @@ export const parseVrm = async (buf: ArrayBuffer): Promise<VRM> => {
 
 export const loadVrmAvatar = async (url: string, sha256: string | undefined, onProgress?: (r: number) => void): Promise<AvatarModel> => {
   const buf = await fetchVerified(url, sha256, onProgress)
-  if (buf.byteLength > AVATAR_LIMITS.bytes) throw new Error('アバターのファイルが大きすぎます')
+  if (buf.byteLength > AVATAR_LIMITS.bytes) throw new Error(L('アバターのファイルが大きすぎます', 'The avatar file is too large'))
   return wrapVrm(await parseVrm(buf))
 }
 
