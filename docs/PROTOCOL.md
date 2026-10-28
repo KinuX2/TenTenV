@@ -95,7 +95,7 @@ GET /files/thumbs/<id>
 | `join` | `instanceId`、`hostScore`、`queue?` | インスタンスに参加。`queue` で満員なら並ぶ |
 | `leave` | — | 退出・順番待ちの取り消し |
 | `signal` | `to`、`data` | WebRTC の接続情報を相手へ |
-| `relay` | `to`（peerId か `'*'`）、`ch`（`'r'`・`'u'`）、`data` | P2P の代わりの中継（4 章） |
+| `relay` | `to`（peerId か `'*'`）、`ch`（`'r'`・`'u'`・`'v'`）、`data` | P2P の代わりの中継（4 章） |
 | `status` | `status`、`statusText?` | オンライン状態 |
 | `p2pfail` | `peerId` | P2P がつながらなかった相手（記録のみ） |
 | `kick` | `peerId`、`reason` | 退出させる（作成者・モデレーターのみ） |
@@ -208,8 +208,10 @@ interface TicketPayload {
 
 - `ch: 'r'`: `data` は `PeerMessage` の JSON 文字列
 - `ch: 'u'`: `data` はバイナリを標準の base64 にした文字列
+- `ch: 'v'`: 画面共有の映像の断片（種類 4、6 章）を base64 にした文字列。受け手は 16KB を超える断片を捨てます
 - `data` の長さは `ceil(65536 × 4 / 3) + 16` 文字まで
 - 親サーバーは 1 接続あたり 1 秒 64KB（`relayBytesPerSecond`、一時的には 128KB まで）を、`data の長さ × 送り先の数` で数えます。超えたぶんは捨て、`relay_rate` のエラーを返します
+- `ch: 'v'` は別に、1 接続あたり 1 秒 256KB（`relayVideoBytesPerSecond`、一時的には 512KB まで）で数えます（映像のせいで声や姿勢が止まらないように）
 - 設定 `relay: false` の親サーバーでは中継を使えません
 
 声は WebRTC の音声トラックで送れない相手（中継の相手）には、Opus にして `u` で送ります（6 章）。
@@ -327,6 +329,22 @@ P2P でつながっている相手とは、そのまま話し続けます。P2P 
 ```
 
 48kHz・モノラル・24kbps・20ms ごとの Opus です（ブラウザの WebCodecs の `AudioEncoder` / `AudioDecoder` を使う）。受け手は 4〜1500 バイトのものだけを受け付け、60ms ぶんたまってから鳴らし始めます。WebCodecs や AudioWorklet が使えないブラウザでは、声の中継は動きません。
+
+### 画面共有の映像（種類 4、中継の相手だけ・チャンネル v）
+
+```
+[0]  u8  種類 = 4
+[1]  u8  フラグ（bit0: キーフレーム、bit1: H.264。0 なら VP8）
+[2]  u16 フレームの連番
+[4]  u8  断片の番号（0 から）
+[5]  u8  断片の数（1〜255）
+[6]  u16 幅（px）
+[8]  u16 高さ（px）
+[10] u32 時刻（ms）
+[14〜]   符号化したフレームの一部
+```
+
+画面を共有している人は、中継でつながっている相手がいるあいだだけ、WebCodecs の `VideoEncoder` で符号化して送ります（H.264 の Annex B、使えなければ VP8）。1 つの断片は 16KB（ヘッダーを含む）までです。キーフレームは 3 秒ごとと、中継の相手が増えたときに送ります。受け手は共有している人（`sys:screenShare` の `owner`）からの断片だけを組み立て、フレームが抜けたら次のキーフレームまで差分を捨てます。
 
 ---
 

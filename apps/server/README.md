@@ -59,19 +59,20 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `branding.logoLayout` | `"icon"` | 正方形ロゴは `"icon"`。文字入りの横長ロゴは `"wide"` にすると縦横比を保って大きく表示し、隣にサイト名を重複表示しません |
 | `description` | `""` | サーバーの説明 |
 | `termsUrl` | `null` | 利用規約の URL |
-| `publicUrl` | `""` | 外から見たこのサーバーの URL（例 `https://vr.example.com`）。ワールドやアバターのファイルの URL に使います。**公開するときは必ず設定してください**。空なら `http://localhost:<port>` |
+| `publicUrl` | `""` | 外から見たこのサーバーの URL（例 `https://vr.example.com`）。ワールドやアバターのファイルの URL に使います（パスは無視します。サブパスへの設置には対応していません）。**公開するときは必ず設定してください**。空なら `http://localhost:<port>` |
 | `port` | `8787` | 待ち受けるポート |
 | `misskey.enabled` | `true` | Misskey でのログインを使うか |
 | `misskey.allowedHosts` | `null` | ログインを許す Misskey サーバー（例 `["misskey.io"]`）。`null` ならどこでも可 |
 | `limits.avatarBytes` | 100MB | アバター（VRM）の上限 |
 | `limits.worldBytes` | 300MB | ワールドパッケージ（.ttvw）の上限（展開後の合計にも適用） |
+| `limits.uploadBytes` | 3GB | 1 人あたりのアップロード容量（アバターとワールドの現在版の合計）。ワールドの古い版はこの容量に収まる分だけ残します |
 | `limits.instanceFileBytes` | 50MB | インスタンス共有ファイル 1 つの上限 |
 | `limits.maxInstanceCapacity` | `40` | インスタンスの定員の上限 |
 | `relay` | `true` | P2P が張れない相手への WebSocket 中継を許すか |
 | `iceServers` | Google の STUN | クライアントに渡す STUN / TURN サーバー |
 | `admins` | `[]` | 管理者（Misskey のハンドル `@name@host` か利用者 ID） |
 | `corsOrigins` | `"*"` | API を呼べるクライアントのオリジン。`"*"` か `["https://client.example"]` のような配列 |
-| `trustProxy` | `false` | リバースプロキシの `X-Forwarded-For` を信用するか（プロキシの後ろに置くときは `true`） |
+| `trustProxy` | `false` | リバースプロキシの `X-Forwarded-For` を信用するか（プロキシの後ろに置くときは `true`）。右端（直前のプロキシが足したもの）を利用者の IP とみなすので、プロキシは 1 段にしてください |
 | `rateLimits.authPerMinute` | `30` | IP ごとのログインの回数（1 分あたり） |
 | `rateLimits.uploadsPerMinute` | `20` | IP ごとのアップロードの回数（1 分あたり） |
 
@@ -237,7 +238,7 @@ sqlite3 apps/server/data/db.sqlite ".backup '/backup/db-$(date +%F).sqlite'"
 - アバターは glTF バイナリで、VRM（`VRMC_vrm` / `VRM`）拡張を持つものだけを受け付けます。
 - `/files/` は `X-Content-Type-Options: nosniff` と `Content-Security-Policy: sandbox` 付きで配信し、共有ファイルの HTML などはバイナリとして返します。
 - WebSocket はメッセージの形を厳密に確かめ、回数（1 秒 120 回）と中継の送信量（1 秒 64KB）を制限し、違反が続く接続は切断します。
-- ワールドの永続データ: キーは `^[A-Za-z0-9_.\-:]{1,128}$`、値は 100KB まで、共有キー 256 個・1 人 64 個、ワールドあたり 10MB、書き込みは 1 人 1 分 30 回まで。ゲストは書けません。
+- ワールドの永続データ: キーは `^[A-Za-z0-9_.\-:]{1,128}$`、値は 100KB まで、共有キー 256 個・1 人 64 個、ワールドあたり 10MB、書き込みは 1 人 1 分 30 回まで。書き込めるのはそのワールドのインスタンスにいる人と制作者だけで、非公開ワールドのデータは見られる人（制作者・管理者・中にいる人）だけが読めます。
 
 ## インスタンスの公開範囲
 

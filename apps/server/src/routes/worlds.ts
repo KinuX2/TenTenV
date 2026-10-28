@@ -1,5 +1,5 @@
 // ワールド（.ttvw パッケージ）のアップロード・更新・検索・書き出し
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { zipSync, type Zippable } from 'fflate'
 import type { WorldManifest, WorldVisibility } from '@tentenv/protocol'
@@ -10,7 +10,7 @@ import { MANIFEST_FILE, unpackWorld } from '../sdk'
 import { newId } from '../social'
 import { WORLD_SELECT, worldInfo, worldSummary, type UserRow, type WorldRow } from '../views'
 import { likePattern, queryInt, requireUploader } from './util'
-import { ensureUploadQuota } from './uploadQuota'
+import { ensureUploadQuota, uploadQuota } from './uploadQuota'
 
 const VISIBILITY: readonly WorldVisibility[] = ['public', 'unlisted', 'private']
 const SORTS = ['popular', 'new', 'recommended', 'favorites'] as const
@@ -72,6 +72,36 @@ const pruneVersions = (app: App, id: string, current: number) => {
       rmSync(join(dir, name), { recursive: true, force: true })
       app.db.run('DELETE FROM world_versions WHERE world_id = ? AND version = ?', id, v)
     }
+  }
+}
+
+/** フォルダの中のファイルの合計バイト数 */
+const dirBytes = (dir: string): number => {
+  let n = 0
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name)
+    n += e.isDirectory() ? dirBytes(p) : e.isFile() ? statSync(p).size : 0
+  }
+  return n
+}
+
+/** 古い版は、制作者のアップロード容量の残りに収まる分だけ残す（新しい版を優先し、収まらないものは消す） */
+export const trimOldVersions = (app: App, authorId: string) => {
+  const { usedBytes, limitBytes } = uploadQuota(app, authorId)
+  let room = limitBytes - usedBytes
+  const old = app.db.all<{ id: string; version: number }>(
+    'SELECT v.world_id AS id, v.version AS version FROM world_versions v JOIN worlds w ON w.id = v.world_id WHERE w.author_id = ? AND v.version < w.version ORDER BY v.created_at DESC, v.version DESC',
+    authorId,
+  )
+  for (const o of old) {
+    const dir = worldDir(app, o.id, o.version)
+    const bytes = existsSync(dir) ? dirBytes(dir) : 0
+    if (bytes <= room) {
+      room -= bytes
+      continue
+    }
+    rmSync(dir, { recursive: true, force: true })
+    app.db.run('DELETE FROM world_versions WHERE world_id = ? AND version = ?', o.id, o.version)
   }
 }
 
@@ -176,6 +206,9 @@ export const worldRoutes = (app: App) => {
     const n = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM worlds WHERE author_id = ?', me.id)!.n
     if (n >= MAX_WORLDS_PER_USER) throw conflict(`ワールドは 1 人 ${MAX_WORLDS_PER_USER} 個までです`)
     const buf = await readBody(req.raw, app.config.limits.worldBytes)
+    // 受信中に別のアップロードが終わっているかもしれないので数え直す（ここから保存までは同期で進む）
+    const n2 = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM worlds WHERE author_id = ?', me.id)!.n
+    if (n2 >= MAX_WORLDS_PER_USER) throw conflict(`ワールドは 1 人 ${MAX_WORLDS_PER_USER} 個までです`)
     const id = newId()
     const { manifest, totalBytes } = storePackage(app, id, 1, buf, (bytes) => ensureUploadQuota(app, me.id, bytes))
     const meta = cleanMeta(manifest)
@@ -202,15 +235,20 @@ export const worldRoutes = (app: App) => {
       rmSync(worldDir(app, id), { recursive: true, force: true })
       throw e
     }
+    trimOldVersions(app, me.id)
     return worldInfo(app, getWorld(app, id)!, me.id)
   })
 
   r.put('/api/worlds/:id', async (req) => {
-    const { me, w } = ownWorld(req)
+    const { me, w: before } = ownWorld(req)
     requireUploader(app, req)
     const buf = await readBody(req.raw, app.config.limits.worldBytes)
+    // 受信中に削除・更新されているかもしれないので読み直す（ここから保存までは同期で進む）
+    const w = getWorld(app, before.id)
+    if (!w) throw notFound('ワールドが見つかりません')
     const version = w.version + 1
-    const { manifest, totalBytes } = storePackage(app, w.id, version, buf, (bytes) => ensureUploadQuota(app, me.id, bytes, w.total_bytes))
+    // 容量は管理者が更新したときも制作者のものとして数える
+    const { manifest, totalBytes } = storePackage(app, w.id, version, buf, (bytes) => ensureUploadQuota(app, w.author_id, bytes, w.total_bytes))
     const meta = cleanMeta(manifest)
     const now = Date.now()
     db.tx(() => {
@@ -219,6 +257,7 @@ export const worldRoutes = (app: App) => {
       setTags(app, w.id, meta.tags)
     })
     pruneVersions(app, w.id, version)
+    trimOldVersions(app, w.author_id)
     for (const inst of app.instances.all()) if (inst.worldId === w.id) inst.worldName = meta.name
     return worldInfo(app, getWorld(app, w.id)!, me.id)
   })

@@ -125,11 +125,16 @@ const writeQuat = (v: DataView, o: number, q: Quat) => {
 }
 const readQuat = (v: DataView, o: number): Quat => {
   const x = v.getInt16(o, true) / 32767, y = v.getInt16(o + 2, true) / 32767, z = v.getInt16(o + 4, true) / 32767, w = v.getInt16(o + 6, true) / 32767
-  const n = Math.hypot(x, y, z, w) || 1
+  const n = Math.hypot(x, y, z, w)
+  // 全部 0（送り手が長さ 0 の回転を送った）なら回転なしとして扱う。(0,0,0,0) のままだと受け手の計算が壊れる
+  if (n < 1e-6) return { x: 0, y: 0, z: 0, w: 1 }
   return { x: x / n, y: y / n, z: z / n, w: w / n }
 }
 const clampI16 = (n: number) => Math.max(-32768, Math.min(32767, Math.round(n)))
 const finite = (n: number) => Number.isFinite(n)
+/** 位置として受け付ける座標の大きさの上限（m）。姿勢と共有オブジェクトで同じ値を使う */
+const MAX_COORD = 1e5
+const validCoord = (p: Vec3) => finite(p.x) && finite(p.y) && finite(p.z) && Math.abs(p.x) <= MAX_COORD && Math.abs(p.y) <= MAX_COORD && Math.abs(p.z) <= MAX_COORD
 
 const BASE_SIZE = 1 + 1 + 2 + 2 + 4 + 12 + 2 + 1 + 1 + 1 + 14 * 3
 export const encodePose = (f: PoseFrame): ArrayBuffer => {
@@ -170,7 +175,7 @@ export const decodePose = (buf: ArrayBuffer): PoseFrame | null => {
   const flags = v.getUint16(o, true); o += 2
   const time = v.getUint32(o, true); o += 4
   const root = { x: v.getFloat32(o, true), y: v.getFloat32(o + 4, true), z: v.getFloat32(o + 8, true) }; o += 12
-  if (!finite(root.x) || !finite(root.y) || !finite(root.z) || Math.abs(root.x) > 1e5 || Math.abs(root.y) > 1e5 || Math.abs(root.z) > 1e5) return null
+  if (!validCoord(root)) return null
   const yaw = (v.getInt16(o, true) / 32767) * Math.PI; o += 2
   const speed = v.getUint8(o++) / 25
   const moveX = v.getInt8(o++) / 127
@@ -260,7 +265,7 @@ export const decodeObjects = (buf: ArrayBuffer): { time: number; list: ObjectPos
   for (let i = 0; i < n; i++) {
     const hash = v.getUint32(o, true); o += 4
     const p = { x: v.getFloat32(o, true), y: v.getFloat32(o + 4, true), z: v.getFloat32(o + 8, true) }; o += 12
-    if (!finite(p.x) || !finite(p.y) || !finite(p.z)) return null
+    if (!validCoord(p)) return null
     const q = readQuat(v, o); o += 8
     const vel = { x: v.getInt16(o, true) / 100, y: v.getInt16(o + 2, true) / 100, z: v.getInt16(o + 4, true) / 100 }; o += 6
     list.push({ hash, p, q, vel })
@@ -273,6 +278,10 @@ export const BINARY_POSE = POSE_TYPE
 export const BINARY_OBJECTS = OBJECT_TYPE
 /** 中継で送る声（Opus）: [3][連番 u16][Opus のデータ] */
 export const BINARY_VOICE = 3
+/** 中継でつながっている相手への画面共有の映像（WebCodecs で符号化した断片） */
+export const BINARY_SCREEN = 4
+/** 画面共有の映像の断片 1 つの大きさの上限（ヘッダーを含む） */
+export const SCREEN_FRAGMENT_BYTES = 16 * 1024
 
 /** 中継（WebSocket は文字列）のためにバイナリを文字列にする */
 export const binToStr = (buf: ArrayBuffer) => {

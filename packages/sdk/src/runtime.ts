@@ -3,7 +3,7 @@
 import { createContext, useContext } from 'react'
 import type { AudioListener, Object3D, Vector3Tuple } from 'three'
 import type { InstanceInfo, SharedFileInfo, WorldInfo, WorldSummary } from '@tentenv/protocol'
-import type { AvatarMotionApi } from './motion'
+import type { AvatarBones, AvatarMotionApi, QuaternionTuple } from './motion'
 
 export type DeviceKind = 'desktop' | 'mobile' | 'vr'
 export type Unsubscribe = () => void
@@ -31,6 +31,16 @@ export interface PlayerPose {
   head: Vector3Tuple
   leftHand: Vector3Tuple
   rightHand: Vector3Tuple
+  /** 頭（視点）の向き。ワールドの座標の回転 [x, y, z, w]。正面は -Z */
+  headRotation: QuaternionTuple
+  /**
+   * 手の向き（VR はコントローラーの握り・ハンドトラッキングの手首、ワールドの座標）。
+   * 手を追跡していないとき（PC・スマホ）は頭の向きと同じ
+   */
+  leftHandRotation: QuaternionTuple
+  rightHandRotation: QuaternionTuple
+  /** 手の位置・向きが VR で追跡されているか */
+  handsTracked: boolean
   /** アバターの身長と目の高さ（m） */
   height: number
   eyeHeight: number
@@ -185,6 +195,8 @@ export interface WorldRuntime {
   players: () => PlayerInfo[]
   onPlayers: (cb: () => void) => Unsubscribe
   pose: (peerId: string) => PlayerPose | null
+  /** 表示しているアバターの骨（遠い・隠した・読み込み中のアバターは null）。描いた直後の値で、useFrame の中で読む */
+  avatarBones: (peerId: string) => AvatarBones | null
   avatar: AvatarMotionApi
   hostId: () => string | null
   onHost: (cb: () => void) => Unsubscribe

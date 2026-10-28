@@ -110,6 +110,14 @@ describe('WebSocket（/ws）', () => {
     const big = 'A'.repeat(60 * 1024)
     for (let i = 0; i < 5; i++) ca.send({ t: 'relay', to: jb.peerId, ch: 'u', data: big })
     assert.equal((await ca.next('error', (e) => e.code === 'relay_rate')).code, 'relay_rate')
+    // 画面共有の映像（ch: v）はデータの中継とは別に数えるので、データの上限に達していても届く
+    ca.send({ t: 'relay', to: jb.peerId, ch: 'v', data: 'BAAB' })
+    assert.equal((await cb.next('relay', (m) => m.ch === 'v')).data, 'BAAB')
+    // 映像にも上限がある（上限の知らせは 1 秒に 1 回なので、少し待ってから）
+    await new Promise((r) => setTimeout(r, 1100))
+    const frag = 'A'.repeat(60 * 1024)
+    for (let i = 0; i < 12; i++) ca.send({ t: 'relay', to: jb.peerId, ch: 'v', data: frag })
+    assert.equal((await ca.next('error', (e) => e.code === 'relay_rate')).code, 'relay_rate')
 
     // チケットの更新
     ca.send({ t: 'renew' })
@@ -285,6 +293,41 @@ describe('WebSocket（/ws）', () => {
     assert.equal((await cb.next('error')).code, 'denied')
     ca.close()
     cb.close()
+  })
+
+  test('キックは同じ人の別の接続もまとめて外す', async () => {
+    const inst = await instance(owner.token)
+    const b = await testUser(srv, '2 台で入る人')
+    const ca = await WsClient.connect(srv, owner.token)
+    const b1 = await WsClient.connect(srv, b.token)
+    const b2 = await WsClient.connect(srv, b.token)
+    ca.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
+    await ca.next('joined')
+    b1.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
+    const j1 = await b1.next('joined')
+    b2.send({ t: 'join', instanceId: inst.id, hostScore: 0 })
+    await b2.next('joined')
+    ca.send({ t: 'kick', peerId: j1.peerId, reason: '' })
+    await b1.next('kicked')
+    await b2.next('kicked')
+    assert.equal(srv.app.instances.get(inst.id)!.hasUser(b.me.id), false)
+    ca.close()
+    b1.close()
+    b2.close()
+    // 1 人 10 個までなので、ほかのテストのために閉じる
+    await api(srv, 'DELETE', `/api/instances/${inst.id}`, { token: owner.token })
+  })
+
+  test('ひとこととキックの理由に制御文字や向きを変える記号は使えない', async () => {
+    const c = await WsClient.connect(srv, owner.token)
+    c.send({ t: 'status', status: 'online', statusText: '‮foo' })
+    assert.equal((await c.next('error')).code, 'bad_message')
+    c.send({ t: 'status', status: 'online', statusText: 'a\nb' })
+    assert.equal((await c.next('error')).code, 'bad_message')
+    assert.notEqual(srv.app.db.get<{ status_text: string | null }>('SELECT status_text FROM users WHERE id = ?', owner.me.id)!.status_text, '‮foo')
+    c.send({ t: 'kick', peerId: 'abc', reason: '‮x' })
+    assert.equal((await c.next('error')).code, 'bad_message')
+    c.close()
   })
 
   test('ブロックしている相手は hidden になり、信号も通らない', async () => {

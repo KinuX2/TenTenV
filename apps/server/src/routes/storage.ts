@@ -25,11 +25,14 @@ export const storageRoutes = (app: App) => {
   const r = app.router
   const db = app.db
 
+  /** 非公開ワールドは、制作者・管理者・そのワールドのインスタンスにいる人にしか見せない（/api/worlds/:id と同じく 404） */
   const world = (req: Req) => {
+    const me = requireUser(app, req)
     const id = checkId(req.params.worldId, 'ワールド')
-    const w = db.get<{ id: string; author_id: string }>('SELECT id, author_id FROM worlds WHERE id = ?', id)
-    if (!w) throw notFound('ワールドが見つかりません')
-    return w
+    const w = db.get<{ id: string; author_id: string; visibility: string }>('SELECT id, author_id, visibility FROM worlds WHERE id = ?', id)
+    const visible = w && (w.visibility !== 'private' || me.id === w.author_id || app.isAdmin(me) || app.instances.locationOf(me.id)?.worldId === w.id)
+    if (!w || !visible) throw notFound('ワールドが見つかりません')
+    return { w, me }
   }
 
   const key = (req: Req) => {
@@ -39,8 +42,7 @@ export const storageRoutes = (app: App) => {
   }
 
   /** 書き込める人: そのワールドのインスタンスにいる人か制作者 */
-  const writer = (req: Req, w: { id: string; author_id: string }): UserRow => {
-    const me = requireUser(app, req)
+  const writer = (me: UserRow, w: { id: string; author_id: string }): UserRow => {
     const inside = app.instances.locationOf(me.id)?.worldId === w.id
     if (!inside && me.id !== w.author_id) throw forbidden('このワールドに入っているときだけ保存できます')
     if (!app.limiters.storage.take(me.id)) throw tooMany('保存の回数が多すぎます（1 分に 30 回まで）')
@@ -103,65 +105,63 @@ export const storageRoutes = (app: App) => {
 
   // shared
   r.get('/api/storage/:worldId/shared', (req) => {
-    requireUser(app, req)
-    return list(world(req).id, SHARED)
+    return list(world(req).w.id, SHARED)
   })
   r.get('/api/storage/:worldId/shared/:key', (req) => {
-    requireUser(app, req)
-    const row = getOne(world(req).id, SHARED, key(req))
+    const row = getOne(world(req).w.id, SHARED, key(req))
     return { value: row ? (JSON.parse(row.value) as unknown) : null }
   })
   r.put('/api/storage/:worldId/shared/:key', async (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    writer(req, w)
+    writer(me, w)
     const b = await readJson(req.raw, KV_LIMITS.valueBytes * 2)
     if (!('value' in b)) throw badRequest('value を指定してください')
     put(w.id, SHARED, k, b.value)
   })
   r.post('/api/storage/:worldId/shared/:key/increment', async (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    writer(req, w)
+    writer(me, w)
     const b = await readJson(req.raw, 1024)
     return increment(w.id, SHARED, k, b.delta)
   })
   r.delete('/api/storage/:worldId/shared/:key', (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    writer(req, w)
+    writer(me, w)
     db.run('DELETE FROM kv WHERE world_id = ? AND owner = ? AND key = ?', w.id, SHARED, k)
   })
 
   // player
   r.get('/api/storage/:worldId/player', (req) => {
-    const me = requireUser(app, req)
-    return list(world(req).id, readOwner(req, me))
+    const { w, me } = world(req)
+    return list(w.id, readOwner(req, me))
   })
   r.get('/api/storage/:worldId/player/:key', (req) => {
-    const me = requireUser(app, req)
-    const row = getOne(world(req).id, readOwner(req, me), key(req))
+    const { w, me } = world(req)
+    const row = getOne(w.id, readOwner(req, me), key(req))
     return { value: row ? (JSON.parse(row.value) as unknown) : null }
   })
   r.put('/api/storage/:worldId/player/:key', async (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    const me = writer(req, w)
+    writer(me, w)
     const b = await readJson(req.raw, KV_LIMITS.valueBytes * 2)
     if (!('value' in b)) throw badRequest('value を指定してください')
     put(w.id, me.id, k, b.value)
   })
   r.post('/api/storage/:worldId/player/:key/increment', async (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    const me = writer(req, w)
+    writer(me, w)
     const b = await readJson(req.raw, 1024)
     return increment(w.id, me.id, k, b.delta)
   })
   r.delete('/api/storage/:worldId/player/:key', (req) => {
-    const w = world(req)
+    const { w, me } = world(req)
     const k = key(req)
-    const me = writer(req, w)
+    writer(me, w)
     db.run('DELETE FROM kv WHERE world_id = ? AND owner = ? AND key = ?', w.id, me.id, k)
   })
 }

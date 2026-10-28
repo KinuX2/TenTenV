@@ -7,7 +7,7 @@ import { prepareTestLogin } from './auth.mjs'
 const CLIENT = process.argv[2] ?? 'http://127.0.0.1:5190'
 const WORLD = process.argv[3] ?? 'テンプレートワールド'
 const clientUrl = new URL(CLIENT)
-const SERVER = process.argv[4] ?? (clientUrl.port === '5190' ? `${clientUrl.protocol}//${clientUrl.hostname}:8787` : clientUrl.origin)
+const SERVER = process.argv[4] ?? process.env.E2E_SERVER ?? (clientUrl.port === '5190' ? `${clientUrl.protocol}//${clientUrl.hostname}:8787` : clientUrl.origin)
 mkdirSync('tests/e2e/out', { recursive: true })
 const browser = await chromium.launch({
   executablePath: process.env.BROWSER ?? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -26,6 +26,8 @@ const open = async (name, blockP2P, link) => {
       }
     }
   })
+  // 描画を軽くする（ソフトウェア描画のテスト環境で、画面の処理が詰まって声の取り込みが遅れないように）
+  await ctx.addInitScript(() => localStorage.setItem('ttv.settings.v1', JSON.stringify({ quality: 'low', renderScale: 0.5, shadows: false })))
   // 送った数を種類ごとに数える（調査用）
   await ctx.addInitScript(() => {
     const orig = WebSocket.prototype.send

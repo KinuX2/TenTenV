@@ -1,4 +1,5 @@
 // 読み込んだファイルの手元の保存（6.4）。SHA-256 で中身を確かめ、合わないものは使わない
+import { L } from '../i18n'
 const CACHE = 'ttv-assets-v1'
 
 export const sha256Hex = async (buf: ArrayBuffer) => {
@@ -36,7 +37,7 @@ export const fetchVerified = (url: string, sha256?: string, onProgress?: (r: num
       }
     }
     const res = await fetch(url, { mode: 'cors' })
-    if (!res.ok) throw new Error(`ファイルを取得できません（${res.status}）`)
+    if (!res.ok) throw new Error(L(`ファイルを取得できません（${res.status}）`, `Could not fetch the file (${res.status})`))
     const total = Number(res.headers.get('content-length')) || 0
     let buf: ArrayBuffer
     if (res.body && onProgress && total) {
@@ -60,7 +61,7 @@ export const fetchVerified = (url: string, sha256?: string, onProgress?: (r: num
     } else buf = await res.arrayBuffer()
     if (sha256) {
       const h = await sha256Hex(buf)
-      if (h !== sha256) throw new Error('ファイルの中身が一致しません（改ざん・破損のおそれ）')
+      if (h !== sha256) throw new Error(L('ファイルの中身が一致しません（改ざん・破損のおそれ）', 'The file contents do not match (possibly tampered or corrupted)'))
       if (cache && cacheKey) await cache.put(cacheKey, new Response(buf.slice(0))).catch(() => {})
     }
     onProgress?.(1)

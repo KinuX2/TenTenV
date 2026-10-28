@@ -104,8 +104,10 @@ export const instanceRoutes = (app: App) => {
     const access = field.oneOf(b, 'access', ACCESS_LEVELS)
     if (!access) throw badRequest('access を指定してください')
     const max = app.config.limits.maxInstanceCapacity
-    const manifest = parseJson<{ maxCapacity?: number }>(w.manifest, {})
-    const capacity = field.int(b, 'capacity', 1, max) ?? Math.min(max, Math.max(1, manifest.maxCapacity ?? 16))
+    // マニフェストの値はアップロードした人が書いたものなので、数でなければ既定の 16 人にする
+    const mc = parseJson<{ maxCapacity?: unknown }>(w.manifest, {}).maxCapacity
+    const fromWorld = typeof mc === 'number' && Number.isFinite(mc) ? Math.floor(mc) : 16
+    const capacity = field.int(b, 'capacity', 1, max) ?? Math.min(max, Math.max(1, fromWorld))
     const persistent = field.bool(b, 'persistent') ?? false
     let name = field.str(b, 'name', 64) ?? ''
     if (hasControlChars(name)) throw badRequest('名前に使えない文字が含まれています')
@@ -161,11 +163,14 @@ export const instanceRoutes = (app: App) => {
       }
       meta = parseMeta(v)
     }
-    const stat = db.get<{ n: number; total: number | null }>('SELECT COUNT(*) AS n, SUM(file_size) AS total FROM instance_files WHERE instance_id = ?', inst.id)!
-    if (stat.n >= MAX_FILES_PER_INSTANCE) throw conflict(`共有ファイルは ${MAX_FILES_PER_INSTANCE} 個までです`)
+    const stat = () => db.get<{ n: number; total: number | null }>('SELECT COUNT(*) AS n, SUM(file_size) AS total FROM instance_files WHERE instance_id = ?', inst.id)!
+    if (stat().n >= MAX_FILES_PER_INSTANCE) throw conflict(`共有ファイルは ${MAX_FILES_PER_INSTANCE} 個までです`)
     const buf = await readBody(req.raw, app.config.limits.instanceFileBytes)
-    if ((stat.total ?? 0) + buf.length > MAX_INSTANCE_TOTAL) throw conflict('このインスタンスの共有ファイルの容量を超えます')
     if (!mgr.get(inst.id)) throw notFound('インスタンスが見つかりません')
+    // 受信中に同時に上がったものも含めて数え直す（ここから保存までは同期で進む）
+    const cur = stat()
+    if (cur.n >= MAX_FILES_PER_INSTANCE) throw conflict(`共有ファイルは ${MAX_FILES_PER_INSTANCE} 個までです`)
+    if ((cur.total ?? 0) + buf.length > MAX_INSTANCE_TOTAL) throw conflict('このインスタンスの共有ファイルの容量を超えます')
     const id = newId()
     const now = Date.now()
     writeFileAtomic(join(app.filesDir, 'instances', inst.id, id), buf)

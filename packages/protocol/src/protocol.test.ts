@@ -50,6 +50,15 @@ test('物の位置を詰めて戻せる', () => {
   assert.equal(d.time, 42)
   assert.equal(d.list[0].hash, objectHash('box'))
   assert.ok(Math.abs(d.list[0].vel.y - -1) < 1e-2)
+  // 長さ 0 の回転は回転なしとして届く
+  const zero = decodeObjects(encodeObjects(1, [{ ...list[0], q: { x: 0, y: 0, z: 0, w: 0 } }]))!
+  assert.deepEqual(zero.list[0].q, { x: 0, y: 0, z: 0, w: 1 })
+})
+
+test('ありえない位置の物は捨てる', () => {
+  const far = { hash: 1, p: { x: 3e38, y: 0, z: 0 }, q: { x: 0, y: 0, z: 0, w: 1 }, vel: { x: 0, y: 0, z: 0 } }
+  assert.equal(decodeObjects(encodeObjects(1, [far])), null)
+  assert.ok(decodeObjects(encodeObjects(1, [{ ...far, p: { x: 1e5, y: -1e5, z: 0 } }])))
 })
 
 test('レート制限', () => {
