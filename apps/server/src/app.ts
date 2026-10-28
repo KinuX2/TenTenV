@@ -17,6 +17,7 @@ import { Social } from './social'
 import type { UserRow } from './views'
 import { Connection } from './ws'
 import { MAX_SDP } from './wsmsg'
+import { logger, requestId as createRequestId } from './logger'
 
 export class App {
   readonly db: Db
@@ -64,21 +65,45 @@ export class App {
 
   /** 待ち受けを始める。port 0 なら空いている番号を使う */
   listen(port = this.config.port, host?: string): Promise<{ port: number; url: string }> {
-    const server = createServer((req, res) => this.handle(req, res))
+    const server = createServer((req, res) => {
+      const id = createRequestId()
+      const started = Date.now()
+      res.setHeader('x-request-id', id)
+      res.once('finish', () => {
+        const status = res.statusCode
+        const fields = {
+          requestId: id,
+          method: req.method ?? 'GET',
+          path: (req.url ?? '/').split('?')[0],
+          status,
+          durationMs: Date.now() - started,
+          responseBytes: res.getHeader('content-length') ?? null,
+        }
+        if (status >= 500) logger.error('http.request.completed', undefined, fields)
+        else if (status >= 400) logger.warn('http.request.completed', fields)
+        else logger.info('http.request.completed', fields)
+      })
+      this.handle(req, res, id)
+    })
     server.requestTimeout = 30 * 60_000
     server.headersTimeout = 60_000
     const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SDP + 64 * 1024 + 4096 })
+    wss.on('error', (error) => logger.error('websocket.server.error', error))
+    server.on('clientError', (error) => logger.warn('http.client.error', { message: error.message }))
+    server.on('error', (error) => logger.error('http.server.error', error))
     server.on('upgrade', (req, socket, head) => {
       const path = (req.url ?? '').split('?')[0]
       const origin = req.headers.origin
       const okOrigin = this.config.corsOrigins === '*' || !origin || this.config.corsOrigins.includes(origin)
       if (path !== '/ws' || !okOrigin) {
+        logger.warn('websocket.upgrade.rejected', { path, originAllowed: okOrigin })
         socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n')
         return socket.destroy()
       }
       wss.handleUpgrade(req, socket, head, (ws) => {
         const c = new Connection(this, ws, clientIp(req, this.config.trustProxy))
         this.connections.add(c)
+        logger.info('websocket.connected', { connectionId: c.connectionId, activeConnections: this.connections.size })
       })
     })
     this.server = server
@@ -100,12 +125,14 @@ export class App {
         const addr = server.address()
         const p = typeof addr === 'object' && addr ? addr.port : port
         if (!this.publicUrl) this.publicUrl = `http://localhost:${p}`
+        logger.info('server.listening', { port: p, host: host ?? '0.0.0.0', publicUrl: this.publicUrl, dataDir: this.config.dataDir, serverId: this.keys.serverId })
         resolve({ port: p, url: `http://localhost:${p}` })
       })
     })
   }
 
   async close() {
+    logger.info('server.shutdown.started', { activeConnections: this.connections.size })
     for (const t of this.timers) clearInterval(t)
     this.timers = []
     const conns = [...this.connections]
@@ -121,9 +148,10 @@ export class App {
       this.server.closeAllConnections()
     })
     this.db.close()
+    logger.info('server.shutdown.completed')
   }
 
-  private async handle(req: IncomingMessage, res: ServerResponse) {
+  private async handle(req: IncomingMessage, res: ServerResponse, requestId: string) {
     const cors = corsHeaders(req.headers.origin, this.config.corsOrigins)
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v)
     let url: URL
@@ -178,7 +206,7 @@ export class App {
         if (wasAborted(req)) res.setHeader('connection', 'close')
         sendError(res, e.status, e.code, e.message)
       } else {
-        console.error('[http]', req.method, path, e)
+        logger.error('http.request.failed', e, { requestId, method: req.method ?? 'GET', path })
         sendError(res, 500, 'internal', 'サーバーでエラーが起きました')
       }
     }
