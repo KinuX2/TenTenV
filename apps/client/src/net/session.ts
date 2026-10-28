@@ -23,6 +23,7 @@ import {
   BINARY_OBJECTS,
   BINARY_POSE,
   BINARY_VOICE,
+  BINARY_SCREEN,
   binaryType,
   encodeObjects,
 } from '@tentenv/protocol'
@@ -45,7 +46,7 @@ export interface Member {
   expr: { weights: Record<string, number>; gesture: [HandGesture, HandGesture] }
   typing: boolean
   lastSeen: number
-  limits: { state: RateLimiter; events: RateLimiter; chat: RateLimiter; poses: RateLimiter; voice: RateLimiter }
+  limits: { state: RateLimiter; events: RateLimiter; chat: RateLimiter; poses: RateLimiter; voice: RateLimiter; screen: RateLimiter }
 }
 
 export interface ChatEntry {
@@ -97,6 +98,8 @@ export class InstanceSession {
   readonly exprEv = new Emitter<[string]>()
   readonly clockEv = new Emitter<[]>()
   readonly voiceEv = new Emitter<[string, ArrayBuffer]>()
+  /** 中継でつながっている相手からの画面共有の映像の断片 */
+  readonly screenEv = new Emitter<[string, ArrayBuffer]>()
   readonly chatLog: ChatEntry[] = []
   private host: string | null = null
   private epoch = 0
@@ -159,6 +162,8 @@ export class InstanceSession {
           poses: new RateLimiter(LIMITS.posesPerSecond * 2, 2000),
           // 中継の声（Opus 20ms = 50 個/秒）
           voice: new RateLimiter(140, 2000),
+          // 中継の画面共有の映像の断片（16KB まで。250KB/秒 で 16 個/秒ほど）
+          screen: new RateLimiter(120, 2000),
         },
       }
       this.members.set(desc.peerId, m)
@@ -556,6 +561,8 @@ export class InstanceSession {
       while (frames.length > 2 && frames[0].t < t - 2000) frames.shift()
     } else if (type === BINARY_VOICE) {
       if (m.limits.voice.take()) this.voiceEv.emit(from, buf)
+    } else if (type === BINARY_SCREEN) {
+      if (m.limits.screen.take()) this.screenEv.emit(from, buf)
     } else if (type === BINARY_OBJECTS) {
       const d = decodeObjects(buf)
       if (d) this.objectEv.emit(from, this.unwrapTime(d.time), d.list)

@@ -1,6 +1,6 @@
 // WebSocket（/ws）: 認証・時計合わせ・インスタンスへの参加・P2P の信号の受け渡し・中継
 import type { WebSocket } from 'ws'
-import { ByteBucket, LIMITS, PROTOCOL_VERSION, RateLimiter, type ClientSignal, type ServerSignal } from '@tentenv/protocol'
+import { ByteBucket, LIMITS, PROTOCOL_VERSION, RateLimiter, type ClientSignal, type ServerSignal, type RelayChannel } from '@tentenv/protocol'
 import type { App } from './app'
 import { userFromToken } from './auth'
 import type { JoinConn, Member, QueueEntry } from './instances'
@@ -25,6 +25,8 @@ export class Connection implements JoinConn {
   private dropped = { at: 0, n: 0 }
   private readonly limiter = new RateLimiter(LIMITS.signalPerSecond, 1000)
   private readonly relayBucket = new ByteBucket(LIMITS.relayBytesPerSecond)
+  /** 画面共有の映像はデータとは別に数える（映像で声や姿勢が止まらないように） */
+  private readonly relayVideoBucket = new ByteBucket(LIMITS.relayVideoBytesPerSecond)
   private lastRelayWarn = 0
   private helloTimer: NodeJS.Timeout
 
@@ -189,7 +191,7 @@ export class Connection implements JoinConn {
     this.send({ t: 'welcome', userId: user.id, serverTime: Date.now() })
   }
 
-  private onRelay(to: string, ch: 'r' | 'u', data: string) {
+  private onRelay(to: string, ch: RelayChannel, data: string) {
     const app = this.app
     if (!app.config.relay) return this.error('relay_disabled', 'このサーバーでは中継を使えません')
     const me = this.member
@@ -204,7 +206,8 @@ export class Connection implements JoinConn {
     }
     if (!targets.length) return
     // 送る先の数だけ数える（全員あては人数分の帯域を使うため）
-    if (!this.relayBucket.take(data.length * targets.length)) {
+    const bucket = ch === 'v' ? this.relayVideoBucket : this.relayBucket
+    if (!bucket.take(data.length * targets.length)) {
       const now = Date.now()
       if (now - this.lastRelayWarn > 1000) {
         this.lastRelayWarn = now

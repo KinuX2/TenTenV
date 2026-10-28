@@ -386,7 +386,7 @@ function SharedStage() {
 
 `useScreenShare()` は `owner`（共有者の `PlayerInfo` または `null`）、`video`（共有映像の `HTMLVideoElement` または `null`）、`isSharing`、`start()`、`stop()` を返します。独自のスクリーンを作る場合は `video` から `VideoTexture` を作れます。`start()` はクリックなどのユーザー操作から直接呼びます。`start({ frameRate: 15 })` のように映像のフレームレート（1〜30、既定 24）を指定できます。画面取得に失敗した場合は Promise が reject されます。ワールドから退出すると共有は終了します。
 
-映像は参加者間の WebRTC 接続で届きます。中継接続の参加者と開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
+映像は、P2P でつながっている参加者には WebRTC で、親サーバーの中継でつながっている参加者には WebCodecs（H.264、使えなければ VP8）で符号化して中継で届きます。中継の映像は帯域を抑えるため、最大 1280×720・15 fps 以下で、中継の相手が増えるほど画質が下がります。WebCodecs が使えないブラウザー同士の中継と、開発用の別タブには映像が届きません。画面の音声は送信しません。ブラウザー版では HTTPS または localhost が必要です。
 
 ### `<ImagePanel>`
 
@@ -528,11 +528,46 @@ useFrame(() => { ref.current!.rotation.y = (clock.now() / 1000) % (Math.PI * 2) 
 
 ### 6.5 プレイヤー
 
-**`usePlayers()`** → `{ local, others, all, host, getPose(peerId) }`
+**`usePlayers()`** → `{ local, others, all, host, getPose(peerId), getAvatarBones(peerId) }`
 
 `PlayerInfo` は `userId`・`peerId`（その入室のあいだだけの接続 ID）・`displayName`・`iconUrl`・`isLocal`・`isHost`・`isGuest`・`role`（`'owner' | 'moderator' | 'member'`）・`device`。ほかの人の `device` は今の版では `'vr'` か `'desktop'` だけです（スマホかどうかは伝わりません）。
 
-`getPose(peerId)` は `PlayerPose`（`position`（足元）・`yaw`・`head`・`leftHand`・`rightHand`・`height`・`eyeHeight`・`grounded`・`sitting`・`velocity`）を返します。`useFrame` の中で呼んでください。
+`getPose(peerId)` は `PlayerPose`（`position`（足元）・`yaw`・`head`・`leftHand`・`rightHand`・`headRotation`・`leftHandRotation`・`rightHandRotation`・`handsTracked`・`height`・`eyeHeight`・`grounded`・`sitting`・`velocity`）を返します。`useFrame` の中で呼んでください。
+
+- `headRotation` は頭（視点）の向き、`leftHandRotation`・`rightHandRotation` は手の向きで、どれもワールドの座標の回転 `[x, y, z, w]`（three.js の `Quaternion` にそのまま渡せる）です。頭の正面は -Z です。
+- 手の向きは、VR ではコントローラーの握り（ハンドトラッキングでは手首）の向きです。PC・スマホでは手を追跡していないので、`handsTracked` が `false` になり、手の位置と向きは頭と同じ値になります。
+
+`getAvatarBones(peerId)` は、表示しているアバターの骨（`AvatarBones`: 骨の名前 → `{ position, quaternion, rotation }`）を返します。遠くて表示していない人・隠した人・読み込み中のアバターは `null` です。
+
+| 値 | 内容 |
+|---|---|
+| `position` | 骨のワールドの位置（m） |
+| `quaternion` | 骨のワールドの向き `[x, y, z, w]`。T ポーズのとき、すべての骨がアバターの体と同じ向きになる（VRM 0.x と 1.0 で同じ値） |
+| `rotation` | 親の骨から見た回転（ラジアン、XYZ 順）。`useAvatarMotion().setPose` と同じ形なので、読んだ値をそのまま渡せる |
+
+読める骨は `AVATAR_BONE_NAMES`（`useAvatarMotion` で動かせる骨と、`leftEye`・`rightEye`・`jaw`）で、アバターにない骨は入りません。値はそのフレームに描いた姿勢で、ワールドの `useFrame` がアバターより先に動くと 1 フレーム前の値になります。
+
+```tsx
+import { useRef } from 'react'
+import type { Mesh } from 'three'
+import { useFrame } from '@react-three/fiber'
+import { usePlayers, useAvatarMotion } from '@tentenv/sdk'
+
+// 相手の右手の先に光を置き、相手の腕の形をまねる
+function Follow({ peerId }: { peerId: string }) {
+  const players = usePlayers()
+  const motion = useAvatarMotion()
+  const light = useRef<Mesh>(null)
+  useFrame(() => {
+    const pose = players.getPose(peerId)
+    if (pose) light.current!.position.set(...pose.rightHand)
+    const bones = players.getAvatarBones(peerId)
+    const arm = bones?.rightUpperArm
+    if (arm && bones.rightLowerArm) motion.setPose({ rightUpperArm: arm.rotation, rightLowerArm: bones.rightLowerArm.rotation })
+  })
+  return <mesh ref={light}><sphereGeometry args={[0.03]} /><meshBasicMaterial color="yellow" /></mesh>
+}
+```
 
 **`useTeleport()`** → `{ teleport(position, yaw?), respawn() }`。`yaw` はラジアンです（`<SpawnPad>` とマニフェストは度なので注意）。
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { AudioListener } from 'three'
 import { useRuntime, type ClockState, type DeviceKind, type PlayerInfo, type PlayerPose } from './runtime'
+import type { AvatarBones } from './motion'
 
 /** ワールドの情報とアセットの URL */
 export const useWorldEnv = () => {
@@ -97,8 +98,10 @@ export const usePlayers = () => {
       others: all.filter((p) => !p.isLocal),
       all,
       host: all.find((p) => p.isHost) ?? null,
-      /** 最新の姿勢。useFrame の中で呼ぶ */
+      /** 最新の姿勢（頭・手の位置と向きを含む）。useFrame の中で呼ぶ */
       getPose: (peerId: string): PlayerPose | null => rt.pose(peerId),
+      /** 表示しているアバターの骨の位置・向き。useFrame の中で呼ぶ */
+      getAvatarBones: (peerId: string): AvatarBones | null => rt.avatarBones(peerId),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt, version])

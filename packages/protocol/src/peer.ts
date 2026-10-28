@@ -273,6 +273,10 @@ export const BINARY_POSE = POSE_TYPE
 export const BINARY_OBJECTS = OBJECT_TYPE
 /** 中継で送る声（Opus）: [3][連番 u16][Opus のデータ] */
 export const BINARY_VOICE = 3
+/** 中継でつながっている相手への画面共有の映像（WebCodecs で符号化した断片） */
+export const BINARY_SCREEN = 4
+/** 画面共有の映像の断片 1 つの大きさの上限（ヘッダーを含む） */
+export const SCREEN_FRAGMENT_BYTES = 16 * 1024
 
 /** 中継（WebSocket は文字列）のためにバイナリを文字列にする */
 export const binToStr = (buf: ArrayBuffer) => {

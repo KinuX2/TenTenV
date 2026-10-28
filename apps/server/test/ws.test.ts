@@ -110,6 +110,14 @@ describe('WebSocket（/ws）', () => {
     const big = 'A'.repeat(60 * 1024)
     for (let i = 0; i < 5; i++) ca.send({ t: 'relay', to: jb.peerId, ch: 'u', data: big })
     assert.equal((await ca.next('error', (e) => e.code === 'relay_rate')).code, 'relay_rate')
+    // 画面共有の映像（ch: v）はデータの中継とは別に数えるので、データの上限に達していても届く
+    ca.send({ t: 'relay', to: jb.peerId, ch: 'v', data: 'BAAB' })
+    assert.equal((await cb.next('relay', (m) => m.ch === 'v')).data, 'BAAB')
+    // 映像にも上限がある（上限の知らせは 1 秒に 1 回なので、少し待ってから）
+    await new Promise((r) => setTimeout(r, 1100))
+    const frag = 'A'.repeat(60 * 1024)
+    for (let i = 0; i < 12; i++) ca.send({ t: 'relay', to: jb.peerId, ch: 'v', data: frag })
+    assert.equal((await ca.next('error', (e) => e.code === 'relay_rate')).code, 'relay_rate')
 
     // チケットの更新
     ca.send({ t: 'renew' })

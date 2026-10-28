@@ -14,6 +14,7 @@ import type { AvatarModel } from '../avatar/types'
 import { isAvatarMotionState, makeAvatarMotionState, makeTimedAvatarMotion, sampleAvatarMotion, type AvatarMotionState } from '../avatar/worldMotion'
 import { capturePickupPlacement } from './pickupPlacement'
 import { ScreenShareManager } from './screenShare'
+import { readAvatarBones } from '../avatar/boneReader'
 
 export interface LocalPlayerState {
   position: Vector3
@@ -117,6 +118,8 @@ export class WorldEngine {
   navigate: (target: { worldId?: string; instanceId?: string }) => void = () => {}
   avatarRef: AvatarRef
   localAvatarModel: AvatarModel | null = null
+  /** ほかの人の表示しているアバター（遠くて表示していない人は入らない） */
+  readonly remoteAvatarModels = new Map<string, AvatarModel>()
   private avatarMotionCache = new WeakMap<object, AvatarMotionState | null>()
 
   setPickupUsing(pk: PickupEntry, pressed: boolean, newlyPressed = false) {
@@ -238,12 +241,17 @@ export class WorldEngine {
   localPose(): PlayerPose {
     const p = this.player
     const v = (x: Vector3): Vector3Tuple => [x.x, x.y, x.z]
+    const q = (x: Quaternion): [number, number, number, number] => [x.x, x.y, x.z, x.w]
     return {
       position: v(p.position),
       yaw: p.yaw,
       head: v(p.head.p),
       leftHand: p.left ? v(p.left.p) : v(p.head.p),
       rightHand: p.right ? v(p.right.p) : v(p.head.p),
+      headRotation: q(p.head.q),
+      leftHandRotation: q(p.left?.q ?? p.head.q),
+      rightHandRotation: q(p.right?.q ?? p.head.q),
+      handsTracked: p.vr && !!p.left && !!p.right,
       height: p.height,
       eyeHeight: p.eyeHeight,
       grounded: p.grounded,
@@ -306,6 +314,10 @@ export class WorldEngine {
         }
       },
       pose: (peerId) => (peerId === s.selfId ? this.localPose() : (this.remotePoses.get(peerId) ?? null)),
+      avatarBones: (peerId) => {
+        const model = peerId === s.selfId ? this.localAvatarModel : this.remoteAvatarModels.get(peerId)
+        return model && model.root.visible ? readAvatarBones(model) : null
+      },
       avatar: {
         setPose: (bones, weight = 1) => s.set(`sys:avatarMotion:${s.selfId}`, makeAvatarMotionState('pose', [{ at: 0, bones }], s.clock.now(), weight)),
         play: (motion) => s.set(`sys:avatarMotion:${s.selfId}`, makeTimedAvatarMotion(motion, s.clock.now())),

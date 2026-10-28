@@ -1,6 +1,6 @@
 // WebSocket で受け取るメッセージ（ClientSignal）の厳密な検査。
 // 形が違う・知らない種類・長すぎる文字列はすべて拒否し、検査済みの新しいオブジェクトだけを返す
-import { LIMITS, PEER_MESSAGE_LIMIT, type ClientSignal, type OnlineStatus, type SignalData } from '@tentenv/protocol'
+import { LIMITS, PEER_MESSAGE_LIMIT, type ClientSignal, type OnlineStatus, type SignalData, type RelayChannel } from '@tentenv/protocol'
 
 export const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 export const MAX_SDP = 64 * 1024
@@ -67,9 +67,9 @@ const build = (m: Obj): ClientSignal => {
       return { t: 'signal', to: m.to as string, data: signalData(m.data) }
     case 'relay':
       need(m.to === '*' || isId(m.to), 'to が正しくありません')
-      need(m.ch === 'r' || m.ch === 'u', 'ch が正しくありません')
+      need(m.ch === 'r' || m.ch === 'u' || m.ch === 'v', 'ch が正しくありません')
       need(isStr(m.data, MAX_RELAY_DATA), 'data が正しくありません')
-      return { t: 'relay', to: m.to as string, ch: m.ch as 'r' | 'u', data: m.data as string }
+      return { t: 'relay', to: m.to as string, ch: m.ch as RelayChannel, data: m.data as string }
     case 'status':
       need(typeof m.status === 'string' && STATUSES.includes(m.status as OnlineStatus), 'status が正しくありません')
       need(m.statusText === undefined || isStr(m.statusText, LIMITS.statusText), 'statusText が正しくありません')
