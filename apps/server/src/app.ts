@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws'
 import type { ServerConfig } from './config'
 import { Db } from './db'
 import { serveBrandLogo, serveClient, serveFile } from './files'
+import { injectMeta, pageMeta } from './ogp'
 import { seedWorlds } from './seed'
 import { clientIp, corsHeaders, HttpError, KeyedLimiter, Reply, Router, sendError, sendJson, wasAborted, type Req } from './http'
 import { Hub } from './hub'
@@ -140,7 +141,7 @@ export class App {
     if (path.startsWith('/files/')) return serveFile(this, req, res, path)
     if (!path.startsWith('/api/') && path !== '/api') {
       // クライアントの画面（ビルドしたもの）を配信する
-      if (this.config.clientDir && (req.method === 'GET' || req.method === 'HEAD')) return serveClient(this.config.clientDir, req, res, path)
+      if (this.config.clientDir && (req.method === 'GET' || req.method === 'HEAD')) return serveClient(this.config.clientDir, req, res, path, (html) => injectMeta(html, pageMeta(this, url), this.config.branding.siteName))
       if (path === '/') return sendJson(res, 200, { name: this.config.name, api: '/api/info' })
       return sendError(res, 404, 'not_found', '見つかりません')
     }
