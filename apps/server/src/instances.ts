@@ -302,9 +302,18 @@ export class InstanceManager {
     const target = by.instance.members.get(peerId)
     if (!target || target === by) return { ok: false, code: 'not_found', message: '相手が見つかりません' }
     if (target.role === 'owner' || (target.role === 'moderator' && by.role !== 'owner')) return { ok: false, code: 'forbidden', message: 'この相手はキックできません' }
-    by.instance.kicked.add(target.userId)
-    target.conn.send({ t: 'kicked', reason: reason || 'キックされました' })
-    this.leave(target.conn)
+    const inst = by.instance
+    inst.kicked.add(target.userId)
+    // 同じ人の別の接続（2 台目の端末など）と順番待ちもまとめて外す
+    const msg: ServerSignal = { t: 'kicked', reason: reason || 'キックされました' }
+    for (const e of inst.queue.filter((e) => e.conn.userId === target.userId)) {
+      e.conn.send({ t: 'error', code: 'denied', message: 'このインスタンスからキックされています' })
+      this.leave(e.conn)
+    }
+    for (const m of [...inst.members.values()].filter((m) => m.userId === target.userId)) {
+      m.conn.send(msg)
+      this.leave(m.conn)
+    }
     return { ok: true }
   }
 

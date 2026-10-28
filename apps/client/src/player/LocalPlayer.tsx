@@ -11,7 +11,7 @@ import type { WorldEngine } from '../world/engine'
 import { handCurls, xrSpaceToWorld, xrViewerLocal } from '../world/xr'
 import { readBodyTrackers, skeletalCurls } from '../features/bodyTracking'
 import { input, type InputFrame } from './input'
-import { xrInput, type HandInput } from './xrInput'
+import { resetHandInputs, xrInput, type HandInput } from './xrInput'
 import { menuBus } from '../ui/menuBus'
 import { pendingClick, pendingGrab, pendingTap, pendingUse, pendingWheel } from '../world/interaction'
 import { playspaceOriginY, updatePlayspaceLift } from './playspaceLift'
@@ -35,6 +35,8 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
   const gl = useThree((s) => s.gl)
   const origin = useRef<Group>(null)
   const fov = useSettings((s) => s.s.fov)
+  const drawDistance = useSettings((s) => s.s.drawDistance)
+  const thirdPerson = useSettings((s) => s.s.thirdPerson)
   const manifest = engine.ctx.world.manifest
   const gravity = manifest.physics?.gravity ?? 9.81
   const jumpV = manifest.physics?.jump ?? 4.4
@@ -89,9 +91,13 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
   useEffect(() => {
     camera.fov = fov
     camera.near = manifest.camera?.near ?? 0.03
-    camera.far = Math.min(manifest.camera?.far ?? 1000, settings().drawDistance)
+    camera.far = Math.min(manifest.camera?.far ?? 1000, drawDistance)
     camera.updateProjectionMatrix()
-  }, [camera, fov, manifest])
+  }, [camera, fov, manifest, drawDistance])
+  // 三人称視点は設定に従う（メニューで切り替えても、H で切り替えても同じ値）
+  useEffect(() => {
+    engine.player.thirdPerson = thirdPerson
+  }, [engine, thirdPerson])
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1)
@@ -157,14 +163,17 @@ export const LocalPlayer: React.FC<LocalPlayerProps> = ({ engine, avatarEye }) =
       if (moveHand.primaryDown) f.muteToggle = true
       // 手の形（[21]）
       p.handTracking = L.handTracking || R.handTracking
-    }
+    } else p.handTracking = false
 
     // ---------------- 視点（PC・スマホ） ----------------
     if (!xr) {
       p.yaw += f.lookYaw
       p.pitch = MathUtils.clamp(p.pitch + f.lookPitch, -1.45, 1.45)
     }
-    if (f.thirdPersonToggle) p.thirdPerson = !p.thirdPerson
+    if (f.thirdPersonToggle) {
+      p.thirdPerson = !p.thirdPerson
+      useSettings.getState().set({ thirdPerson: p.thirdPerson })
+    }
 
     // ---------------- 姿勢の切り替え ----------------
     if (f.crouchToggle && !p.sitting) {
@@ -487,13 +496,7 @@ const readXrInput = (gl: WebGLRenderer, origin: Group) => {
   const ref = gl.xr.getReferenceSpace()
   xrInput.active = !!session
   const prevHeld = { left: xrInput.left.triggerHeld, right: xrInput.right.triggerHeld }
-  for (const h of ['left', 'right'] as const) {
-    const st = xrInput[h]
-    st.connected = false
-    st.triggerHeld = false
-    st.triggerDown = st.triggerUp = st.squeezeDown = st.squeezeUp = st.primaryDown = st.secondaryDown = st.stickDown = false
-    st.stick.x = st.stick.y = 0
-  }
+  resetHandInputs()
   if (!session || !frame || !ref) return
   origin.updateMatrixWorld(true)
   for (const src of session.inputSources) {

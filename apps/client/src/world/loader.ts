@@ -10,6 +10,7 @@ import { checkManifest } from '@tentenv/sdk/manifest'
 import * as React from 'react'
 import * as reactDom from 'react-dom'
 import * as jsx from 'react/jsx-runtime'
+import { L } from '../i18n'
 import * as three from 'three'
 import { fetchVerified } from './assetCache'
 
@@ -39,7 +40,7 @@ const runWorldScript = (code: string) => {
       new Promise<unknown>((resolve, reject) => {
         const url = URL.createObjectURL(new Blob([code], { type: 'text/javascript' }))
         const el = document.createElement('script')
-        const timer = setTimeout(() => done(new Error('ワールドのコードが応答しません')), 15000)
+        const timer = setTimeout(() => done(new Error(L('ワールドのコードが応答しません', 'The world code is not responding'))), 15000)
         const done = (err: Error | null, m?: unknown) => {
           clearTimeout(timer)
           window.__ttvRegister = undefined
@@ -49,7 +50,7 @@ const runWorldScript = (code: string) => {
           else resolve(m)
         }
         window.__ttvRegister = (m) => done(null, m)
-        el.onerror = () => done(new Error('ワールドのコードを実行できません'))
+        el.onerror = () => done(new Error(L('ワールドのコードを実行できません', 'Could not run the world code')))
         el.src = url
         document.head.appendChild(el)
       }),
@@ -63,7 +64,7 @@ const pickComponent = (m: unknown): WorldComponent => {
   const o = m as { default?: unknown; World?: unknown } | null
   const c = o?.default ?? o?.World
   if (typeof c === 'function' || (typeof c === 'object' && c !== null)) return c as WorldComponent
-  throw new Error('ワールドの部品（default export か World）が見つかりません')
+  throw new Error(L('ワールドの部品（default export か World）が見つかりません', 'The world component (default export or World) was not found'))
 }
 
 export const loadWorld = async (manifest: WorldManifest, baseUrl: string, onProgress?: (r: number) => void): Promise<LoadedWorld> => {

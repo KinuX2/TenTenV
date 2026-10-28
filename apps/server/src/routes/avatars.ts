@@ -11,6 +11,7 @@ import { AVATAR_SELECT, avatarInfo, type AvatarRow } from '../views'
 import { imageType, inspectVrm, VrmError } from '../vrm'
 import { likePattern, limitIp, queryFlag, requireUploader, sha256hex } from './util'
 import { ensureUploadQuota } from './uploadQuota'
+import { trimOldVersions } from './worlds'
 
 const MAX_AVATARS_PER_USER = 100
 const THUMB_BYTES = 2 * 1024 * 1024
@@ -83,6 +84,9 @@ export const avatarRoutes = (app: App) => {
     const n = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM avatars WHERE owner_id = ?', me.id)!.n
     if (n >= MAX_AVATARS_PER_USER) throw conflict(`アバターは 1 人 ${MAX_AVATARS_PER_USER} 体までです`)
     const buf = await readBody(req.raw, app.config.limits.avatarBytes)
+    // 受信中に別のアップロードが終わっているかもしれないので数え直す（ここから保存までは同期で進む）
+    const n2 = db.get<{ n: number }>('SELECT COUNT(*) AS n FROM avatars WHERE owner_id = ?', me.id)!.n
+    if (n2 >= MAX_AVATARS_PER_USER) throw conflict(`アバターは 1 人 ${MAX_AVATARS_PER_USER} 体までです`)
     ensureUploadQuota(app, me.id, buf.length)
     let info
     try {
@@ -108,6 +112,7 @@ export const avatarRoutes = (app: App) => {
       now,
       now,
     )
+    trimOldVersions(app, me.id)
     return avatarInfo(app, db.get<AvatarRow>(`${AVATAR_SELECT} WHERE a.id = ?`, id)!, me.id)
   })
 

@@ -172,9 +172,10 @@ export const corsHeaders = (origin: string | undefined, allowed: '*' | string[])
 
 export const clientIp = (req: IncomingMessage, trustProxy: boolean) => {
   if (trustProxy) {
+    // 左側は利用者が自由に書けるので、信用するプロキシが最後に足した右端を使う
     const f = req.headers['x-forwarded-for']
-    const first = (Array.isArray(f) ? f[0] : f)?.split(',')[0]?.trim()
-    if (first) return first
+    const last = (Array.isArray(f) ? f.join(',') : f)?.split(',').pop()?.trim()
+    if (last) return last
   }
   return req.socket.remoteAddress ?? 'unknown'
 }

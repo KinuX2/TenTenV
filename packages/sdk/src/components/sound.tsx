@@ -22,8 +22,17 @@ export const SpatialSound: React.FC<SpatialSoundProps> = ({ src, position, volum
   const env = useWorldEnv()
   const clock = useNetClock()
   const ext = useExternal()
-  // 外部の URL は、ワールドが許可したドメインだけ
-  const url = /^https?:/.test(src) ? (ext.isAllowed(src) ? src : '') : env.assetUrl(src)
+  // ワールドのファイル・同じオリジン・ワールドが許可したドメインだけ。
+  // 先に絶対 URL にしてから確かめる（"HTTPS://" のような大文字の書き方も見逃さない）
+  const url = useMemo(() => {
+    try {
+      const full = env.assetUrl(src)
+      // assetUrl('') はワールドのフォルダ（末尾が /）なので、前方一致で中のファイルだけが通る
+      return full.startsWith(env.assetUrl('')) || ext.isAllowed(full) ? full : ''
+    } catch {
+      return ''
+    }
+  }, [env, ext, src])
   const audio = useMemo(() => new PositionalAudio(listener), [listener])
   useEffect(() => {
     let alive = true

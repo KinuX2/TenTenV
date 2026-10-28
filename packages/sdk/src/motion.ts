@@ -19,6 +19,28 @@ export const AVATAR_MOTION_BONES = [
   'rightLittleProximal', 'rightLittleIntermediate', 'rightLittleDistal',
 ] as const
 export type AvatarMotionBone = (typeof AVATAR_MOTION_BONES)[number]
+
+/** Bones a world can read (the animatable bones plus the eyes and jaw). */
+export const AVATAR_BONE_NAMES = [...AVATAR_MOTION_BONES, 'leftEye', 'rightEye', 'jaw'] as const
+export type AvatarBoneName = (typeof AVATAR_BONE_NAMES)[number]
+
+/** Quaternion [x, y, z, w]. */
+export type QuaternionTuple = [number, number, number, number]
+
+export interface AvatarBoneTransform {
+  /** World position of the bone (m). */
+  position: Vector3Tuple
+  /**
+   * World rotation of the bone. In the rest (T) pose every bone has the same rotation as the avatar's body,
+   * so `quaternion` is comparable across VRM 0.x / 1.0 avatars.
+   */
+  quaternion: QuaternionTuple
+  /** Rotation relative to the parent bone (radians, XYZ order) — the same form that useAvatarMotion().setPose takes. */
+  rotation: Vector3Tuple
+}
+
+/** Bones of a displayed avatar. Bones the avatar does not have are missing. */
+export type AvatarBones = Partial<Record<AvatarBoneName, AvatarBoneTransform>>
 export type AvatarBoneRotations = Partial<Record<AvatarMotionBone, Vector3Tuple>>
 
 export interface AvatarMotionFrame {

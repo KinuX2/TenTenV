@@ -1,5 +1,5 @@
-import { Container, Image, Input, Text } from '@react-three/uikit'
-import { useEffect, useState } from 'react'
+import { Container, Image, Input, Text, type VanillaInput } from '@react-three/uikit'
+import { useEffect, useRef, useState } from 'react'
 import { L } from '../../i18n'
 import type { ChatEntry } from '../../net/session'
 import type { WorldEngine } from '../../world/engine'
@@ -20,6 +20,7 @@ const label = (text: string, size: number, color: string) => (
 export const ChatPage: React.FC<Props> = ({ engine, vr, openKeyboard }) => {
   const [messages, setMessages] = useState<ChatEntry[]>(() => [...engine.session.chatLog])
   const [draft, setDraft] = useState('')
+  const inputRef = useRef<VanillaInput>(null)
   useEffect(() => {
     setMessages([...engine.session.chatLog])
     return engine.session.chatEv.on(() => setMessages([...engine.session.chatLog]))
@@ -36,7 +37,8 @@ export const ChatPage: React.FC<Props> = ({ engine, vr, openKeyboard }) => {
   }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter' || e.isComposing || !(e.target instanceof HTMLInputElement)) return
+      // チャットの入力欄の Enter だけを送信にする（ほかの入力欄の Enter は奪わない）
+      if (e.key !== 'Enter' || e.isComposing || !inputRef.current || e.target !== inputRef.current.element) return
       e.preventDefault()
       e.stopPropagation()
       send()
@@ -69,7 +71,7 @@ export const ChatPage: React.FC<Props> = ({ engine, vr, openKeyboard }) => {
       </Container>
       <Container flexShrink={0} height={50} flexDirection="row" alignItems="center" gap={8}>
         <Container height={44} flexGrow={1} flexShrink={1} flexDirection="row" alignItems="center" paddingX={14} borderRadius={22} borderWidth={1} borderColor="#30392c" backgroundColor="#151a13">
-          <Input width="100%" value={draft} onValueChange={(value: string) => setDraft(value.slice(0, 300))} placeholder={safeText(L('メッセージを入力', 'Message'))} fontSize={15} fontWeight="bold" color="#f1f4ee" />
+          <Input ref={inputRef} width="100%" value={draft} onValueChange={(value: string) => setDraft(value.slice(0, 300))} placeholder={safeText(L('メッセージを入力', 'Message'))} fontSize={15} fontWeight="bold" color="#f1f4ee" />
         </Container>
         {vr && <Container width={42} height={42} borderRadius={21} backgroundColor="#1d231a" alignItems="center" justifyContent="center" cursor="pointer" onClick={() => { playUiClick(); openKeyboard({ title: L('メッセージ', 'Message'), initial: draft, maxLength: 300, onDone: (text) => { if (text !== null) send(text) } }) }}>
           <Image src={iconTexture('keyboard', '#f1f4ee')} width={23} height={23} keepAspectRatio={false} />

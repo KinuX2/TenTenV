@@ -31,10 +31,12 @@ export const LocalAvatar: React.FC<{ engine: WorldEngine; onEye: (eye: number, m
   const lastSend = useRef(0)
   const look = useRef<[number, number, number] | null>(null)
   const modelRef = useRef<AvatarModel | null>(null)
-  // 触れられた（[43]）: 一瞬うれしい顔にして、手を振るわせる
+  // 触れられた（[43]）: 一瞬うれしい顔にして、手を振るわせる（自分が接触を許している相手だけ）
   useEffect(
     () =>
-      engine.session.touchEv.on((_, part) => {
+      engine.session.touchEv.on((from, part) => {
+        const userId = engine.session.members.get(from)?.desc.user.id
+        if (!userId || !myContactAllows(userId)) return
         const face = (modelRef.current as (AvatarModel & { face?: { react: (n: string) => void } }) | null)?.face
         face?.react(part === 'head' ? 'happy' : 'surprised')
         haptic('left', 0.2 * settings().hapticsStrength, 15)
@@ -328,6 +330,10 @@ const RemotePlayer: React.FC<{ engine: WorldEngine; member: Member; showAvatar: 
       head: [head.x, head.y, head.z],
       leftHand: [pose.left?.p.x ?? head.x, pose.left?.p.y ?? head.y, pose.left?.p.z ?? head.z],
       rightHand: [pose.right?.p.x ?? head.x, pose.right?.p.y ?? head.y, pose.right?.p.z ?? head.z],
+      headRotation: [f.head.q.x, f.head.q.y, f.head.q.z, f.head.q.w],
+      leftHandRotation: vr ? [f.left.q.x, f.left.q.y, f.left.q.z, f.left.q.w] : [f.head.q.x, f.head.q.y, f.head.q.z, f.head.q.w],
+      rightHandRotation: vr ? [f.right.q.x, f.right.q.y, f.right.q.z, f.right.q.w] : [f.head.q.x, f.head.q.y, f.head.q.z, f.head.q.w],
+      handsTracked: vr,
       height: (model.current?.height ?? 1.7) * pose.scale,
       eyeHeight: (model.current?.eyeHeight ?? 1.6) * pose.scale,
       grounded: pose.grounded,
@@ -358,7 +364,13 @@ const RemotePlayer: React.FC<{ engine: WorldEngine; member: Member; showAvatar: 
     if (talkRing.current) talkRing.current.visible = talking && !muted
     if (engine.remotePoses.has(peerId) && !engine.session.members.has(peerId)) engine.remotePoses.delete(peerId)
   })
-  useEffect(() => () => void engine.remotePoses.delete(peerId), [engine, peerId])
+  useEffect(
+    () => () => {
+      engine.remotePoses.delete(peerId)
+      engine.remoteAvatarModels.delete(peerId)
+    },
+    [engine, peerId],
+  )
 
   const name = member.desc.user.displayName
   const status = STATUS_COLOR[member.desc.user.status] ?? STATUS_COLOR.online
@@ -373,6 +385,9 @@ const RemotePlayer: React.FC<{ engine: WorldEngine; member: Member; showAvatar: 
           frame={frame}
           onModel={(m, info) => {
             model.current = m
+            // ワールドが骨を読めるように（SDK の avatarBones）
+            if (m) engine.remoteAvatarModels.set(peerId, m)
+            else engine.remoteAvatarModels.delete(peerId)
             setFallbackReason(info.reason)
             // 自分の手を相手の揺れものに当てる（相手が許しているときだけ）
             if (m && contactAllowed(member.allowContact, member.desc.user.id)) m.setExtraColliders([{ obj: engine.localHands.left, radius: 0.045 }, { obj: engine.localHands.right, radius: 0.045 }])
