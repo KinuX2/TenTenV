@@ -1,6 +1,5 @@
 // 親サーバー本体。設定・DB・鍵・HTTP・WebSocket をまとめる
 import { mkdirSync } from 'node:fs'
-import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { join } from 'node:path'
 import { WebSocketServer } from 'ws'
