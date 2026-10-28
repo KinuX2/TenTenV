@@ -170,12 +170,15 @@ export interface MediaApi {
 
 export interface ScreenShareApi {
   /** Call directly from a user action; the browser asks which screen or window to share. */
-  start: (options?: { frameRate?: number }) => Promise<void>
+  /** audio: false で画面の音を送らない（既定では、ブラウザーの選択画面で音声の共有を選べる） */
+  start: (options?: { frameRate?: number; audio?: boolean }) => Promise<void>
   stop: () => void
   isSharing: () => boolean
   ownerId: () => string | null
   /** The live video element for the active share, or null when unavailable. */
   video: () => HTMLVideoElement | null
+  /** 共有している人の画面の音。自分が共有しているとき・音を共有していないときは null（古いクライアントにはない） */
+  audio?: () => MediaStream | null
   onChange: (cb: () => void) => Unsubscribe
   revision: () => number
 }

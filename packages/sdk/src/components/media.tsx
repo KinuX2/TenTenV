@@ -1,6 +1,6 @@
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AdditiveBlending, DoubleSide, type Camera, Color, LinearFilter, Mesh, type MeshBasicMaterial, PlaneGeometry, PositionalAudio, SRGBColorSpace, TextureLoader, VideoTexture, type Texture, type Vector3Tuple } from 'three'
+import { AdditiveBlending, DoubleSide, type Camera, Color, LinearFilter, Mesh, type MeshBasicMaterial, PlaneGeometry, PositionalAudio, SRGBColorSpace, type ShaderMaterial, TextureLoader, VideoTexture, type Texture, type Vector3Tuple } from 'three'
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
 import { useAudioListener, useNetClock, useSyncedState, useDialogs, useExternal, useNavigation, useScreenShare } from '../hooks'
 import { useRuntime } from '../runtime'
@@ -39,10 +39,26 @@ export interface MirrorSurfaceProps {
   tint?: string
   /** ワールドの物も映すか（false ならアバターだけ） */
   showWorld?: boolean
+  /** 明るさの倍率（1 でそのまま。暗い部屋の鏡は 1.2〜1.5 など） */
+  brightness?: number
+  /** false にすると、鏡の絵にトーンマップをかけない（ワールドのトーンマップで鏡が暗く・くすんで見えるとき） */
+  toneMapped?: boolean
+}
+
+/** three.js の Reflector の標準シェーダー（型定義にはないが、実体はある） */
+const REFLECTOR_SHADER = (Reflector as unknown as { ReflectorShader: { name?: string; uniforms: Record<string, { value: unknown }>; vertexShader: string; fragmentShader: string } }).ReflectorShader
+/** Reflector の絵に明るさの倍率をかけるシェーダー */
+const MIRROR_SHADER = {
+  ...REFLECTOR_SHADER,
+  name: 'TenTenVMirrorShader',
+  uniforms: { ...REFLECTOR_SHADER.uniforms, brightness: { value: 1 } },
+  fragmentShader: REFLECTOR_SHADER.fragmentShader
+    .replace('uniform vec3 color;', 'uniform vec3 color;\nuniform float brightness;')
+    .replace('gl_FragColor = vec4( blendOverlay( base.rgb, color ), 1.0 );', 'gl_FragColor = vec4( blendOverlay( base.rgb, color ) * brightness, 1.0 );'),
 }
 
 /** 鏡。アバターは三人称の見た目（自分の頭も）で映る */
-export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height = 2, position, rotation, resolution, color, quality = 1, tint = '#c8ccd0', showWorld = true }) => {
+export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height = 2, position, rotation, resolution, color, quality = 1, tint = '#c8ccd0', showWorld = true, brightness = 1, toneMapped = true }) => {
   const size = useThree((s) => s.size)
   const dpr = useThree((s) => s.viewport.dpr)
   const explicitWidth = Array.isArray(resolution) ? resolution[0] : null
@@ -56,6 +72,7 @@ export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height 
       textureWidth,
       textureHeight,
       color: new Color(color ?? tint),
+      shader: MIRROR_SHADER,
     })
     // 鏡のカメラは元のカメラを複製して作られる。そのときにレイヤーを鏡用に変える
     const rr = r as unknown as { getReflectionCamera: (c: Camera) => Camera }
@@ -70,6 +87,15 @@ export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height 
     }
     return r
   }, [width, height, quality, tint, color, showWorld, size.width, size.height, dpr, explicitWidth, explicitHeight])
+  // 明るさとトーンマップは作り直さずに変える
+  useEffect(() => {
+    const m = mirror.material as ShaderMaterial
+    m.uniforms.brightness.value = Number.isFinite(brightness) ? Math.max(0, Math.min(4, brightness)) : 1
+    if (m.toneMapped !== toneMapped) {
+      m.toneMapped = toneMapped
+      m.needsUpdate = true
+    }
+  }, [mirror, brightness, toneMapped])
   useEffect(() => () => {
     mirror.dispose()
     mirror.geometry.dispose()
@@ -79,18 +105,64 @@ export const MirrorSurface: React.FC<MirrorSurfaceProps> = ({ width = 2, height 
 
 // ---------- ScreenShareSurface ----------
 
-export interface ScreenShareSurfaceProps {
+/** 操作ボタンの場所。'bottom'（画面の下）・'top'（画面の上）か、画面から見た位置 [x, y, z] */
+export type ControlsPlacement = 'bottom' | 'top' | Vector3Tuple
+
+/** 操作ボタンの置き場所（画面の中心から見た位置） */
+const controlsAt = (placement: ControlsPlacement, height: number, gap: number, z: number): Vector3Tuple =>
+  Array.isArray(placement) ? placement : placement === 'top' ? [0, height / 2 + gap, z] : [0, -height / 2 - gap, z]
+
+/** 操作ボタンの場所・向き・大きさ（MediaScreen・ScreenShareSurface 共通） */
+export interface ControlsLayoutProps {
+  /** 操作ボタンの場所（既定は 'bottom'） */
+  controlsPosition?: ControlsPlacement
+  /** 操作ボタンの向き（画面から見た回転、ラジアン）。手元の台に置くなら [-0.6, 0, 0] など */
+  controlsRotation?: Vector3Tuple
+  /** 操作ボタンの大きさの倍率 */
+  controlsScale?: number
+}
+
+export interface ScreenShareSurfaceProps extends ControlsLayoutProps {
   width?: number
   position?: Vector3Tuple
   rotation?: Vector3Tuple
   /** Add an in-world start/stop button. */
   controls?: boolean
   placeholder?: string
+  /** 画面の音をこの画面から鳴らす（同じ共有を映す画面が複数あるときは、1 つだけ true にする） */
+  audio?: boolean
+  /** 画面の音の大きさ */
+  volume?: number
+  /** 画面の音が聞こえる距離（m） */
+  range?: number
+}
+
+/** 共有している人の画面の音を、この位置で鳴らす */
+const ScreenShareAudio: React.FC<{ stream: MediaStream; volume: number; range: number }> = ({ stream, volume, range }) => {
+  const listener = useAudioListener()
+  const audio = useMemo(() => {
+    const a = new PositionalAudio(listener)
+    a.setMediaStreamSource(stream)
+    a.setDistanceModel('linear')
+    a.setRolloffFactor(1.2)
+    return a
+  }, [listener, stream])
+  useEffect(() => {
+    audio.setVolume(volume)
+  }, [audio, volume])
+  useEffect(() => {
+    audio.setRefDistance(range / 6)
+    audio.setMaxDistance(range)
+  }, [audio, range])
+  useEffect(() => () => {
+    audio.disconnect()
+  }, [audio])
+  return <primitive object={audio} />
 }
 
 /** A live screen in the world. Multiple surfaces show the same active share. */
-export const ScreenShareSurface: React.FC<ScreenShareSurfaceProps> = ({ width = 3.2, position, rotation, controls = true, placeholder = '画面共有なし' }) => {
-  const { owner, video, isSharing, start, stop } = useScreenShare()
+export const ScreenShareSurface: React.FC<ScreenShareSurfaceProps> = ({ width = 3.2, position, rotation, controls = true, placeholder = '画面共有なし', audio: playAudio = true, volume = 1, range = 18, controlsPosition = 'bottom', controlsRotation, controlsScale = 1 }) => {
+  const { owner, video, audio, isSharing, start, stop } = useScreenShare()
   const { notify } = useDialogs()
   const height = width * 9 / 16
   const [aspect, setAspect] = useState(16 / 9)
@@ -133,10 +205,13 @@ export const ScreenShareSurface: React.FC<ScreenShareSurfaceProps> = ({ width = 
       <planeGeometry args={[imageWidth, imageHeight]} />
       <meshBasicMaterial map={texture} toneMapped={false} side={DoubleSide} />
     </mesh> : <TextPlane text={owner ? `${owner.displayName} の画面を待っています` : placeholder} width={width * 0.8} lineHeight={0.16} position={[0, 0, 0.003]} color="#c3d0c5" />}
-    {controls && (!owner || isSharing) && <Clickable label={isSharing ? '画面共有を停止' : '画面を共有'} onClick={action} position={[0, -height / 2 - 0.17, 0]}>
-      <mesh><boxGeometry args={[Math.min(width * 0.55, 1.5), 0.22, 0.04]} /><meshStandardMaterial color="#3d713b" /></mesh>
-      <TextPlane text={isSharing ? '共有を停止' : '画面を共有'} width={Math.min(width * 0.5, 1.4)} lineHeight={0.12} position={[0, 0, 0.025]} />
-    </Clickable>}
+    {playAudio && audio && <ScreenShareAudio stream={audio} volume={volume} range={range} />}
+    {controls && (!owner || isSharing) && <group position={controlsAt(controlsPosition, height, 0.17, 0)} rotation={controlsRotation} scale={controlsScale}>
+      <Clickable label={isSharing ? '画面共有を停止' : '画面を共有'} onClick={action}>
+        <mesh><boxGeometry args={[Math.min(width * 0.55, 1.5), 0.22, 0.04]} /><meshStandardMaterial color="#3d713b" /></mesh>
+        <TextPlane text={isSharing ? '共有を停止' : '画面を共有'} width={Math.min(width * 0.5, 1.4)} lineHeight={0.12} position={[0, 0, 0.025]} />
+      </Clickable>
+    </group>}
   </group>
 }
 
@@ -154,7 +229,7 @@ export interface MediaState {
   lockedBy: string | null
 }
 
-export interface MediaScreenProps {
+export interface MediaScreenProps extends ControlsLayoutProps {
   id: string
   width?: number
   position?: Vector3Tuple
@@ -171,7 +246,7 @@ export interface MediaScreenProps {
 const drift = (v: HTMLVideoElement, target: number) => Math.abs(v.currentTime - target)
 
 /** 動画プレイヤー。再生・停止・シークは全員で同期し、あとから来た人も同じ所から見られる */
-export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, position, rotation, defaultUrl = '', controls = true, range = 18, volume: vol0 = 0.8 }) => {
+export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, position, rotation, defaultUrl = '', controls = true, range = 18, volume: vol0 = 0.8, controlsPosition = 'bottom', controlsRotation, controlsScale = 1 }) => {
   const rt = useRuntime()
   const clock = useNetClock({ require: 'media' })
   const listener = useAudioListener()
@@ -321,7 +396,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({ id, width = 3.2, posit
       <primitive object={audio} />
       {status && <TextPlane text={status} width={width * 0.8} lineHeight={0.09} position={[0, 0, 0.01]} background="#000000aa" />}
       {controls && (
-        <group position={[0, -height / 2 - 0.12, 0.02]} scale={cw / 3.2}>
+        <group position={controlsAt(controlsPosition, height, 0.12, 0.02)} rotation={controlsRotation} scale={(cw / 3.2) * controlsScale}>
           {btn(st.playing ? '一時停止' : '再生', -1.4, () => act(() => (st.playing ? { playing: false, offset: pos(), anchor: clock.now() } : { playing: true, offset: st.offset, anchor: clock.now() })))}
           {btn('-10秒', -1.02, () => act(() => ({ offset: Math.max(0, pos() - 10), anchor: clock.now() })))}
           {btn('+10秒', -0.64, () => act(() => ({ offset: pos() + 10, anchor: clock.now() })))}

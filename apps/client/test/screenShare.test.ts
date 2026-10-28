@@ -12,7 +12,7 @@ class FakeTrack extends EventTarget {
 }
 
 const track = new FakeTrack()
-const stream = { getVideoTracks: () => [track], getTracks: () => [track] } as unknown as MediaStream
+const stream = { getVideoTracks: () => [track], getAudioTracks: () => [], getTracks: () => [track] } as unknown as MediaStream
 const makeVideo = () => Object.assign(new EventTarget(), {
   muted: false, autoplay: false, playsInline: false, srcObject: null as MediaStream | null,
   videoWidth: 1920, videoHeight: 1080,

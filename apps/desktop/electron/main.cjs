@@ -205,7 +205,8 @@ function setupSession() {
   ses.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) =>
     isTrusted(requestingOrigin) && allowed.has(permission) && !(permission === 'media' && details && details.mediaType === 'video'))
   ses.setDisplayMediaRequestHandler(async (request, callback) => {
-    if (!isTrusted(request.securityOrigin) || !request.frame || request.frame !== request.frame.top || !request.videoRequested || request.audioRequested) {
+    // 画面の音を求められても、映像だけを渡す（Windows のシステムの音を取ると、ボイスチャットの声まで拾って送り返してしまう）
+    if (!isTrusted(request.securityOrigin) || !request.frame || request.frame !== request.frame.top || !request.videoRequested) {
       callback(null)
       return
     }

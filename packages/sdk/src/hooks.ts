@@ -188,6 +188,7 @@ export const useScreenShare = () => {
     return {
       owner: ownerId ? rt.players().find((p) => p.peerId === ownerId) ?? null : null,
       video: share.video(),
+      audio: share.audio?.() ?? null,
       isSharing: share.isSharing(),
       start: share.start,
       stop: share.stop,
