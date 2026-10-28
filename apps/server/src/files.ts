@@ -1,7 +1,7 @@
 // /files/... の静的ファイル配信（Range 対応・パスの検査・キャッシュ指定）
-import { createReadStream, mkdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { createReadStream, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import type { App } from './app'
 import { sendError } from './http'
 
@@ -193,7 +193,8 @@ export const serveFile = (app: App, req: IncomingMessage, res: ServerResponse, p
 }
 
 /** クライアントの画面（ビルドしたもの）。ファイルがなければ index.html を返す（画面の切り替えはクライアントがする） */
-export const serveClient = (root: string, req: IncomingMessage, res: ServerResponse, path: string) => {
+/** html を渡すと、画面（index.html）を返すときに中身を書き換える（共有リンクのプレビュー用） */
+export const serveClient = (root: string, req: IncomingMessage, res: ServerResponse, path: string, html?: (source: string) => string) => {
   let rel: string
   try {
     rel = decodeURIComponent(path).replace(/^\/+/, '')
@@ -224,6 +225,16 @@ export const serveClient = (root: string, req: IncomingMessage, res: ServerRespo
     }
   }
   const hashed = rel.startsWith('assets/')
+  if (html && basename(file) === 'index.html') {
+    let body: Buffer
+    try {
+      body = Buffer.from(html(readFileSync(file, 'utf8')))
+    } catch {
+      return sendError(res, 500, 'internal', '画面を読み込めません')
+    }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-length': body.length, 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' })
+    return res.end(req.method === 'HEAD' ? undefined : body)
+  }
   res.writeHead(200, {
     'content-type': mimeOf(file).replace('application/octet-stream', extname(file) === '.html' ? 'text/html; charset=utf-8' : 'application/octet-stream'),
     'content-length': st.size,

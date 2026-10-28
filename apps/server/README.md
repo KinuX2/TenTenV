@@ -39,11 +39,11 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 
 | 項目 | 既定値 | 説明 |
 |---|---|---|
-| `name` | `"TenTenV Server"` | サーバーの名前（クライアントに表示） |
+| `name` | `"TenTenV Server"` | サーバーの名前（クライアントと、共有リンクのプレビューに表示） |
 | `branding.siteName` | `"TenTenV"` | 接続画面・ホーム画面・共有ページ・ブラウザのタブ・認証画面に表示する名前 |
-| `branding.logoFile` | `null` | ロゴ画像のファイル。設定ファイルからの相対パス、または絶対パス。PNG・JPEG・WebP・GIF・AVIF・SVG、最大 2MB。未設定なら標準のアイコン |
+| `branding.logoFile` | `null` | ロゴ画像のファイル。設定ファイルからの相対パス、または絶対パス。PNG・JPEG・WebP・GIF・AVIF・SVG、最大 2MB。未設定なら標準のアイコン。SVG 以外なら、共有リンクのプレビュー画像にも使う |
 | `branding.logoLayout` | `"icon"` | 正方形ロゴは `"icon"`。文字入りの横長ロゴは `"wide"` にすると縦横比を保って大きく表示し、隣にサイト名を重複表示しません |
-| `description` | `""` | サーバーの説明 |
+| `description` | `""` | サーバーの説明（共有リンクのプレビューにも使う） |
 | `termsUrl` | `null` | 利用規約の URL |
 | `publicUrl` | `""` | 外から見たこのサーバーの URL（例 `https://vr.example.com`）。ワールドやアバターのファイルの URL に使います（パスは無視します。サブパスへの設置には対応していません）。**公開するときは必ず設定してください**。空なら `http://localhost:<port>` |
 | `port` | `8787` | 待ち受けるポート |
@@ -75,6 +75,18 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `TTV_DATA` | データフォルダ（既定 `apps/server/data`）。設定ファイルはその隣の `server.config.json` を読みます |
 | `TTV_PUBLIC_URL` | `publicUrl` |
 | `TTV_CONFIG` | 設定ファイルの場所を直接指定する |
+
+### 共有リンクのプレビュー（OGP）
+
+親サーバーがクライアントの画面を配信するとき、SNS やチャットに貼ったリンクのプレビュー用に、`<title>` と OGP・Twitter Card のタグを入れます。`publicUrl` を正しく設定しておいてください（画像や URL はそれを基準に作ります）。
+
+| 開いた URL | タイトル | 説明 | 画像 |
+|---|---|---|---|
+| ワールドの共有リンク（`?world=`） | ワールドの名前 | ワールドの説明 | ワールドのサムネイル |
+| 招待リンク（`?instance=`） | 「ワールドの名前」への招待 | ワールドの説明 | ワールドのサムネイル |
+| それ以外（トップなど） | `name` | `description` | `branding.logoFile`（SVG のときは標準のアイコン） |
+
+非公開のワールドと、見つからないワールド・インスタンスは、トップと同じプレビューになります。インスタンスの名前は出しません。
 
 ## データの置き場所
 
