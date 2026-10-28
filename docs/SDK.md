@@ -2,6 +2,8 @@
 
 TenTenV のワールドは、React Three Fiber（React で three.js の 3D を書くライブラリ）のコンポーネントです。`@tentenv/sdk` のフックと部品を使うと、押せる物・つかめる物・椅子・鏡・動画・全員で同じになる状態・保存するデータなどを作れます。
 
+この SDK は [XRift](https://github.com/WebXR-JP) を参考にしています。内容を確認してくださった XRift の作者の sawa-zen さんに感謝します。
+
 このガイドでは、プロジェクトの作り方、設定ファイル、コマンド、API、同期のしくみ、制限をまとめます。実際の例は `worlds/template/`（ひな型）と `worlds/home/src/`（標準のホームワールド。SDK の機能をひととおり使っています）にあります。
 
 ---

@@ -8,6 +8,10 @@ TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウ�
 
 誰でも自分の「親サーバー」を立てられ、利用者は接続する親サーバーを選びます。参加者どうしは P2P（WebRTC）で直接つながるので、親サーバーが止まっても、すでに同じ部屋にいる人とはそのまま遊び続けられます。
 
+## 参考にしたもの
+
+ワールドの作り方は [XRift](https://github.com/WebXR-JP) を参考にしています。内容を確認してくださった XRift の作者の sawa-zen さんに感謝します。
+
 ## スクリーンショット
 
 | ホームワールド | DJ Lounge |
@@ -92,7 +96,7 @@ TenTenV/
 │  ├─ server/     親サーバー（HTTP API + WebSocket、SQLite）
 │  ├─ client/     クライアント（Vite + React + React Three Fiber）
 │  ├─ desktop/    Windows ネイティブクライアント（詳しくは apps/desktop/README.md）
-│  └─ site/       公式サイト（紹介・ダウンロード・ドキュメント）
+│  └─ site/       公式サイト（ドキュメント）
 ├─ worlds/
 │  ├─ home/       標準のホームワールド（SDK の機能の見本）
 │  ├─ dj-lounge/  DJ ラウンジ
@@ -129,7 +133,7 @@ node tests/e2e/smoke.mjs http://127.0.0.1:5190
 | [apps/server/README.md](apps/server/README.md) | 親サーバーの運営 |
 | [apps/desktop/README.md](apps/desktop/README.md) | Windows 版のビルドと使い方 |
 
-公式サイト（`apps/site`）は、これらの文書を目次と検索つきで読めるドキュメントページを含みます。`npm run dev -w @tentenv/site`（http://localhost:5200）で開けます。
+公式サイト（`apps/site`）は、これらの文書を目次と検索つきで読めるドキュメントだけのサイトです。`npm run dev -w @tentenv/site`（http://localhost:5200）で開けます。
 
 ## ライセンス
 

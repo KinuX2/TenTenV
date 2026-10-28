@@ -2,7 +2,7 @@
 import { createRoot } from 'react-dom/client'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { marked } from 'marked'
-import { Icon, L, page, REPO_URL, setLang, useLang } from './common'
+import { HOME, Icon, L, REPO_URL, setLang, useLang } from './common'
 import './site.css'
 import './docs-theme.css'
 import userGuide from '../../../docs/USER_GUIDE.md?raw'
@@ -68,7 +68,7 @@ const normalize = (p: string) => {
   return out.join('/')
 }
 
-const docHref = (id: string, hash = '') => `${page('docs/')}?doc=${id}${hash ? '#' + hash : ''}`
+const docHref = (id: string, hash = '') => `${HOME}?doc=${id}${hash ? '#' + hash : ''}`
 
 const currentId = () => {
   const id = new URLSearchParams(location.search).get('doc')
@@ -146,7 +146,7 @@ const Docs: React.FC = () => {
   }, [])
 
   const open = (next: string | null, hash = '') => {
-    history.pushState(null, '', next ? docHref(next, hash) : page('docs/'))
+    history.pushState(null, '', next ? docHref(next, hash) : HOME)
     setId(next)
     setQ('')
     if (!hash) window.scrollTo({ top: 0 })
@@ -214,11 +214,11 @@ const Docs: React.FC = () => {
   return <div className="docs-app">
     <header className="docs-topbar">
       <div className="docs-width docs-topbar-inner">
-        <a className="docs-brand" href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>
+        <a className="docs-brand" href={HOME} onClick={(e) => { e.preventDefault(); open(null) }}>
           <span className="docs-brand-mark">T</span><span>TenTenV <strong>Docs</strong></span>
         </a>
         <nav aria-label={L('サイト', 'Site')}>
-          <a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>{L('ガイド', 'Guide')}</a>
+          <a href={HOME} onClick={(e) => { e.preventDefault(); open(null) }}>{L('ガイド', 'Guide')}</a>
           <a href={REPO_URL} target="_blank" rel="noopener noreferrer">GitHub ↗</a>
           <button onClick={() => setLang(lang === 'ja' ? 'en' : 'ja')}>{lang === 'ja' ? 'EN' : '日本語'}</button>
         </nav>
@@ -236,6 +236,7 @@ const Docs: React.FC = () => {
       </main> : !doc ? <main className="docs-home">
         <div className="docs-home-hero">
           <div><span className="docs-eyebrow">TENTENV DOCUMENTATION</span><h1>{L('TenTenV ドキュメント', 'TenTenV Documentation')}</h1><p>{L('遊び方、ワールド制作、サーバー運営に必要な情報をまとめています。', 'Guides for playing, creating worlds, and hosting a server.')}</p>
+            <p className="docs-credit">{L('ワールドの作り方は ', 'The world-building workflow is inspired by ')}<a href="https://github.com/WebXR-JP" target="_blank" rel="noopener noreferrer">XRift</a>{L(' を参考にしています。内容を確認してくださった XRift の作者の sawa-zen さんに感謝します。', '. Thanks to sawa-zen, the creator of XRift, for reviewing it.')}</p>
             <a className="docs-start" href={docHref('user-guide')} onClick={(e) => { e.preventDefault(); open('user-guide') }}>{L('使い方から始める', 'Start with the guide')} <span>↗</span></a>
           </div>
         </div>
@@ -247,15 +248,15 @@ const Docs: React.FC = () => {
         </section>)}
       </main> : <div className="docs-reader">
         <aside className="docs-reader-nav" aria-label={L('ドキュメントの一覧', 'Document navigation')}>
-          <a className="docs-back" href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('すべてのガイド', 'All guides')}</a>
+          <a className="docs-back" href={HOME} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('すべてのガイド', 'All guides')}</a>
           {GROUPS.map(([group, ja, en]) => <div className="docs-nav-group" key={group}><span>{L(ja, en)}</span>{DOCS.filter((item) => item.group === group).map((item) => <a className={item.id === id ? 'selected' : ''} key={item.id} href={docHref(item.id)} onClick={(e) => { e.preventDefault(); open(item.id) }}>{L(item.ja, item.en)}</a>)}</div>)}
         </aside>
         <main className="docs-reader-main">
-          <div className="docs-breadcrumb"><a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>Docs</a><span>/</span><span>{L(doc.ja, doc.en)}</span></div>
+          <div className="docs-breadcrumb"><a href={HOME} onClick={(e) => { e.preventDefault(); open(null) }}>Docs</a><span>/</span><span>{L(doc.ja, doc.en)}</span></div>
           <div className="docs-reader-intro"><span className="docs-eyebrow">{L('ガイド', 'GUIDE')}</span><p>{L(...SUMMARIES[doc.id])}</p></div>
           {toc.length > 0 && <details className="docs-inline-toc"><summary>{L('このページの内容', 'On this page')} <span>＋</span></summary><div>{toc.map((item) => <a key={item.id} className={`${item.level === 3 ? 'nested ' : ''}${active === item.id ? 'selected' : ''}`} href={`#${item.id}`}>{item.text}</a>)}</div></details>}
           <article className="md" ref={body} dangerouslySetInnerHTML={{ __html: html }} />
-          <div className="docs-end"><a href={page('docs/')} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('ガイド一覧に戻る', 'Back to all guides')}</a><a href={`${REPO_URL}/blob/main/${doc.path}`} target="_blank" rel="noopener noreferrer">{L('原文を見る', 'View source')} ↗</a></div>
+          <div className="docs-end"><a href={HOME} onClick={(e) => { e.preventDefault(); open(null) }}>← {L('ガイド一覧に戻る', 'Back to all guides')}</a><a href={`${REPO_URL}/blob/main/${doc.path}`} target="_blank" rel="noopener noreferrer">{L('原文を見る', 'View source')} ↗</a></div>
         </main>
       </div>}
     </div>

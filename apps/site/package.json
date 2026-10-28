@@ -1,7 +1,7 @@
 {
   "name": "@tentenv/site",
   "version": "0.1.0",
-  "description": "TenTenV official website",
+  "description": "TenTenV documentation site",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
@@ -10,9 +10,7 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "build:pages": "tsc -p tsconfig.json --noEmit && node scripts/build-pages.mjs",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "capture": "node scripts/capture.mjs",
-    "bundle-download": "node scripts/bundle-download.mjs"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "marked": "^18.1.1",

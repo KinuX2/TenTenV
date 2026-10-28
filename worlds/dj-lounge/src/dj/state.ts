@@ -1,7 +1,7 @@
 import { camelot, keySyncShift, shiftKey, type Key } from './key'
 import { TRACKS } from './tracks'
 
-// みんなで共有する DJ の状態（useInstanceState で同期）。音は各自のブラウザが同じ状態から作る。
+// みんなで共有する DJ の状態（useSyncedState で同期）。音は各自のブラウザが同じ状態から作る。
 // 再生位置は「anchorTime（サーバー時刻 ms）の時点で anchorPos 秒、そこから rate 倍で進む（REVERSE 中は戻る）」で表す
 export type PadMode = 'hotcue' | 'beatloop' | 'beatjump' | 'sampler' | 'roll' | 'keyboard' | 'keyshift'
 

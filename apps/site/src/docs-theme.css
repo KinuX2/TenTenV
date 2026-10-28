@@ -35,6 +35,8 @@
 .docs-home-hero { max-width: 820px; padding: 4px 0 43px; border-bottom: 1px solid var(--line); }
 .docs-home-hero h1 { font-size: clamp(32px, 4vw, 47px); letter-spacing: -.045em; margin: 14px 0 12px; }
 .docs-home-hero p { color: var(--sub); font-size: 16px; max-width: 650px; margin: 0 0 25px; }
+.docs-home-hero p.docs-credit { font-size: 13px; margin: -10px 0 25px; }
+.docs-credit a { color: inherit; text-decoration: underline; }
 .docs-start { display: inline-flex; align-items: center; gap: 20px; padding: 10px 17px; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 700; font-size: 14px; }
 .docs-start:hover { background: #3f6848; color: #fff; text-decoration: none; }
 .docs-start span { font-size: 17px; }
