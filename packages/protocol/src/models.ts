@@ -16,7 +16,8 @@ export interface ServerInfo {
   publicKey: string
   /** 公開鍵の指紋。親サーバーの識別子として使う */
   serverId: string
-  auth: { misskey: boolean; misskeyHosts: string[] | null }
+  /** google・x は、その方法でログインできるか（旧サーバーは省略する） */
+  auth: { misskey: boolean; misskeyHosts: string[] | null; google?: boolean; x?: boolean }
   limits: {
     avatarBytes: number
     worldBytes: number
@@ -60,7 +61,7 @@ export interface UserSummary {
 }
 
 export interface UserProfile extends UserSummary {
-  /** `@name@host` 形式（Misskey 連携時）または `guest:...` */
+  /** `@name@host`（Misskey）・`google:...`・`x:...` または `guest:...` */
   handle: string
   bio: string
   links: string[]

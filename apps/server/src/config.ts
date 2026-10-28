@@ -4,6 +4,12 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { IceServer } from '@tentenv/protocol'
 
+/** OAuth 2.0 のクライアント（Google・X の開発者向けの画面で作る）。両方そろっていればログインに使える */
+export interface OAuthClient {
+  clientId: string | null
+  clientSecret: string | null
+}
+
 export interface ServerConfig {
   port: number
   /** 外から見たこのサーバーの URL（末尾 / なし）。ファイルの URL に使う */
@@ -14,6 +20,8 @@ export interface ServerConfig {
   branding: { siteName: string; logoFile: string | null; logoLayout: 'icon' | 'wide' }
   termsUrl: string | null
   misskey: { enabled: boolean; allowedHosts: string[] | null }
+  google: OAuthClient
+  x: OAuthClient
   limits: { avatarBytes: number; worldBytes: number; uploadBytes: number; instanceFileBytes: number; maxInstanceCapacity: number }
   relay: boolean
   iceServers: IceServer[]
@@ -43,6 +51,8 @@ export const defaultConfig = (dataDir = DEFAULT_DATA_DIR): ServerConfig => ({
   branding: { siteName: 'TenTenV', logoFile: null, logoLayout: 'icon' },
   termsUrl: null,
   misskey: { enabled: true, allowedHosts: null },
+  google: { clientId: null, clientSecret: null },
+  x: { clientId: null, clientSecret: null },
   limits: { avatarBytes: 100 * MB, worldBytes: 300 * MB, uploadBytes: 3 * 1024 * MB, instanceFileBytes: 50 * MB, maxInstanceCapacity: 40 },
   relay: true,
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -81,6 +91,11 @@ export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): 
     if (h === null) out.misskey.allowedHosts = null
     else if (Array.isArray(h)) out.misskey.allowedHosts = h.filter((x): x is string => typeof x === 'string').map((x) => x.toLowerCase())
   }
+  for (const k of ['google', 'x'] as const) {
+    const o = over[k]
+    if (!isObj(o)) continue
+    for (const f of ['clientId', 'clientSecret'] as const) if (typeof o[f] === 'string' || o[f] === null) out[k][f] = (o[f] as string | null)?.trim() || null
+  }
   if (isObj(over.limits)) for (const k of Object.keys(out.limits) as (keyof ServerConfig['limits'])[]) if (isCount(over.limits[k])) out.limits[k] = over.limits[k] as number
   if (isObj(over.rateLimits)) for (const k of Object.keys(out.rateLimits) as (keyof ServerConfig['rateLimits'])[]) if (isCount(over.rateLimits[k])) out.rateLimits[k] = over.rateLimits[k] as number
   if (Array.isArray(over.iceServers)) out.iceServers = over.iceServers.filter((s): s is IceServer => isObj(s) && (typeof s.urls === 'string' || Array.isArray(s.urls)))
@@ -92,7 +107,8 @@ export const mergeConfig = (base: ServerConfig, over: Record<string, unknown>): 
   return out
 }
 
-/** 設定ファイルと環境変数（TTV_PORT, TTV_DATA, TTV_PUBLIC_URL, TTV_CONFIG）から設定を作る */
+/** 設定ファイルと環境変数（TTV_PORT, TTV_DATA, TTV_PUBLIC_URL, TTV_CONFIG,
+ * TTV_GOOGLE_CLIENT_ID, TTV_GOOGLE_CLIENT_SECRET, TTV_X_CLIENT_ID, TTV_X_CLIENT_SECRET）から設定を作る */
 export const loadConfig = (env = process.env): ServerConfig => {
   const dataDir = env.TTV_DATA ? resolve(env.TTV_DATA) : DEFAULT_DATA_DIR
   const file = env.TTV_CONFIG ? resolve(env.TTV_CONFIG) : join(dirname(dataDir), 'server.config.json')
@@ -109,6 +125,13 @@ export const loadConfig = (env = process.env): ServerConfig => {
   if (env.TTV_PORT) cfg.port = Number(env.TTV_PORT) || cfg.port
   if (env.TTV_DATA) cfg.dataDir = dataDir
   if (env.TTV_PUBLIC_URL) cfg.publicUrl = env.TTV_PUBLIC_URL
+  // 秘密の値は設定ファイルに書かず、環境変数で渡してもよい
+  for (const [k, name] of [['google', 'GOOGLE'], ['x', 'X']] as const) {
+    const id = env[`TTV_${name}_CLIENT_ID`]?.trim()
+    const secret = env[`TTV_${name}_CLIENT_SECRET`]?.trim()
+    if (id) cfg[k].clientId = id
+    if (secret) cfg[k].clientSecret = secret
+  }
   if (cfg.branding.logoFile) cfg.branding.logoFile = resolve(dirname(file), cfg.branding.logoFile)
   cfg.publicUrl = cfg.publicUrl.trim().replace(/\/+$/, '')
   if (cfg.publicUrl) {

@@ -1,9 +1,10 @@
-// /api/info と認証（Misskey MiAuth・ログアウト）
+// /api/info と認証（Misskey MiAuth・Google・X・ログアウト）
 import { PROTOCOL_VERSION, SDK_VERSION, type ServerInfo } from '@tentenv/protocol'
 import type { App } from '../app'
 import { bearer, createSession, deleteSession } from '../auth'
-import { forbidden, readJson } from '../http'
+import { forbidden, readJson, Reply } from '../http'
 import { finishMiAuth, startMiAuth } from '../misskey'
+import { finishOAuth, oauthCallback, oauthEnabled, providerOf, startOAuth } from '../oauth'
 import { meInfo } from '../views'
 import { limitIp } from './util'
 import { defaultHomeWorldId } from '../seed'
@@ -18,7 +19,7 @@ export const serverInfo = (app: App): ServerInfo => ({
   termsUrl: app.config.termsUrl,
   publicKey: app.keys.publicKey,
   serverId: app.keys.serverId,
-  auth: { misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts },
+  auth: { misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts, google: oauthEnabled(app, 'google'), x: oauthEnabled(app, 'x') },
   limits: { ...app.config.limits },
   relay: app.config.relay,
   iceServers: app.config.iceServers,
@@ -41,6 +42,30 @@ export const authRoutes = (app: App) => {
     limitIp(app, 'auth', req)
     const body = await readJson(req.raw, 4096)
     const user = await finishMiAuth(app, body.session, app.fetchImpl)
+    if (user.banned) throw forbidden('このアカウントは利用停止されています')
+    return { token: createSession(app, user.id), me: meInfo(app, user) }
+  })
+
+  r.post('/api/auth/:provider/start', async (req) => {
+    const p = providerOf(req.params.provider)
+    limitIp(app, 'auth', req)
+    const body = await readJson(req.raw, 4096)
+    return startOAuth(app, p, body.callback)
+  })
+
+  r.get('/api/auth/:provider/callback', (req) => {
+    const p = providerOf(req.params.provider)
+    limitIp(app, 'auth', req)
+    return oauthCallback(app, p, req.query)
+  })
+
+  r.post('/api/auth/:provider/finish', async (req) => {
+    const p = providerOf(req.params.provider)
+    limitIp(app, 'auth', req)
+    const body = await readJson(req.raw, 4096)
+    const user = await finishOAuth(app, p, body.session, app.fetchImpl)
+    // まだ許可の画面から戻っていない
+    if (!user) return new Reply(202, { pending: true })
     if (user.banned) throw forbidden('このアカウントは利用停止されています')
     return { token: createSession(app, user.id), me: meInfo(app, user) }
   })

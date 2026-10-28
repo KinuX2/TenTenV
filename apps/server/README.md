@@ -63,6 +63,8 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `port` | `8787` | 待ち受けるポート |
 | `misskey.enabled` | `true` | Misskey でのログインを使うか |
 | `misskey.allowedHosts` | `null` | ログインを許す Misskey サーバー（例 `["misskey.io"]`）。`null` ならどこでも可 |
+| `google.clientId` / `google.clientSecret` | `null` | Google ログインの OAuth クライアント。両方あれば Google でログインできます（[下記](#google-x-ログインの設定)） |
+| `x.clientId` / `x.clientSecret` | `null` | X ログインの OAuth 2.0 クライアント。両方あれば X でログインできます |
 | `limits.avatarBytes` | 100MB | アバター（VRM）の上限 |
 | `limits.worldBytes` | 300MB | ワールドパッケージ（.ttvw）の上限（展開後の合計にも適用） |
 | `limits.uploadBytes` | 3GB | 1 人あたりのアップロード容量（アバターとワールドの現在版の合計）。ワールドの古い版はこの容量に収まる分だけ残します |
@@ -227,6 +229,36 @@ Misskey の MiAuth を使います。親サーバーはパスワードを受け�
 3. クライアントが `POST /api/auth/misskey/finish {session}` を呼ぶと、親サーバーが `https://<host>/api/miauth/<session>/check` に問い合わせ、`@username@host` の利用者としてログインさせます。
 
 特定の Misskey サーバーの利用者だけにしたいときは `misskey.allowedHosts` に並べます。管理者は `admins` に `@name@host` で書きます。
+
+## Google・X ログインの設定
+
+OAuth 2.0（認可コード + PKCE）を使います。親サーバーはパスワードを受け取らず、読むのは名前・アイコン・変わらない ID だけです。アクセストークンはプロフィールを読んだらすぐ捨て、保存しません。どちらも、Google・X の開発者向けの画面でアプリ（クライアント）を登録する必要があります。**`publicUrl` を必ず設定してください**（戻り先の URL になります）。
+
+**Google**
+
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) で「OAuth クライアント ID」を作ります。種類は「ウェブ アプリケーション」。
+2. 「承認済みのリダイレクト URI」に `https://<publicUrl のホスト>/api/auth/google/callback` を入れます。
+3. 範囲（スコープ）は `openid` と `profile` だけです。OAuth 同意画面を「本番環境」にすると、テストユーザー以外もログインできます。
+
+**X**
+
+1. [X Developer Portal](https://developer.x.com/) でアプリを作り、「User authentication settings」で OAuth 2.0 を有効にします。種類は「Web App, Automated App or Bot」（Confidential client）。
+2. 「Callback URI」に `https://<publicUrl のホスト>/api/auth/x/callback` を入れます。
+3. 範囲は `users.read` と `tweet.read`（`/2/users/me` を読むのに要ります。投稿はしません）。`/2/users/me` を呼べるプランが必要です。
+
+できた Client ID と Client Secret を設定に書きます。秘密の値は設定ファイルに書かず、環境変数 `TTV_GOOGLE_CLIENT_ID`・`TTV_GOOGLE_CLIENT_SECRET`・`TTV_X_CLIENT_ID`・`TTV_X_CLIENT_SECRET` で渡すこともできます（環境変数が優先）。Client Secret は `/api/info` などでクライアントに渡ることはありません。
+
+```json
+{ "google": { "clientId": "xxxx.apps.googleusercontent.com", "clientSecret": "..." }, "x": { "clientId": "...", "clientSecret": "..." } }
+```
+
+流れ:
+
+1. クライアントが `POST /api/auth/<google|x>/start {callback}` を呼ぶと、親サーバーは Google・X の許可の画面の URL を返します。戻り先は親サーバーの `/api/auth/<google|x>/callback` です。
+2. 利用者が許可すると親サーバーに戻り、親サーバーは認可コードを預かって `callback`（クライアントの画面）へ転送します。
+3. クライアントが `POST /api/auth/<google|x>/finish {session}` を呼ぶと、親サーバーが認可コードをトークンに替えてプロフィールを読み、`google:<ID>`・`x:<ID>` の利用者としてログインさせます。
+
+デスクトップ版は、許可の画面を既定のブラウザーで開きます（Google はアプリ内のログイン画面を受け付けないため）。このときは `callback` を省き、許可されるまで `finish` が `202 {pending: true}` を返すので、クライアントは繰り返して待ちます。管理者を `admins` に書くときは、`google:<ID>` などのハンドルか、利用者 ID を使います。
 
 ## バックアップ
 
