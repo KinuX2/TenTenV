@@ -13,10 +13,6 @@
     "enabled": true,
     "allowedHosts": null
   },
-  "google": {
-    "clientId": null,
-    "clientSecret": null
-  },
   "x": {
     "clientId": null,
     "clientSecret": null

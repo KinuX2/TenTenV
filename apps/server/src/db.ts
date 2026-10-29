@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS miauth_sessions (
   created_at INTEGER NOT NULL
 );
 
--- Google・X（OAuth 2.0）のログイン途中の状態。callback が NULL なら、クライアントが finish を繰り返して待つ
+-- X（OAuth 2.0）のログイン途中の状態。callback が NULL なら、クライアントが finish を繰り返して待つ
 CREATE TABLE IF NOT EXISTS oauth_sessions (
   session TEXT PRIMARY KEY,
   provider TEXT NOT NULL,

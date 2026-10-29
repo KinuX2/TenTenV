@@ -24,7 +24,7 @@ TenTenV の親サーバー・クライアント・参加者どうしの通信の
 | `GET /branding/logo` | — | 設定されたロゴ画像。`branding.logoUrl` が `null` の場合は未設定 |
 | `POST /api/auth/misskey/start` | `{host, callback}` | `{url, session}`。`url` は Misskey の MiAuth の画面（権限は `read:account` だけ） |
 | `POST /api/auth/misskey/finish` | `{session}` | `{token, me}` |
-| `POST /api/auth/:provider/start` | `{callback?}` | `{url, session}`。`provider` は `google`・`x`。`url` は許可の画面。`callback` を省くと、`finish` で待つ（デスクトップ版） |
+| `POST /api/auth/:provider/start` | `{callback?}` | `{url, session}`。`provider` は `x`。`url` は許可の画面。`callback` を省くと、`finish` で待つ（デスクトップ版） |
 | `GET /api/auth/:provider/callback` | `?code=&state=` | 許可の画面からの戻り先。`callback` へ `?session=` を付けて転送する（省いたときは「アプリに戻って」のページ） |
 | `POST /api/auth/:provider/finish` | `{session}` | `{token, me}`。まだ許可されていなければ `202 {pending: true}` |
 | `POST /api/auth/logout` | — | セッションを消す |

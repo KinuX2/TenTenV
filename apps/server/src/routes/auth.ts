@@ -1,4 +1,4 @@
-// /api/info と認証（Misskey MiAuth・Google・X・ログアウト）
+// /api/info と認証（Misskey MiAuth・X・ログアウト）
 import { PROTOCOL_VERSION, SDK_VERSION, type ServerInfo } from '@tentenv/protocol'
 import type { App } from '../app'
 import { bearer, createSession, deleteSession } from '../auth'
@@ -19,7 +19,7 @@ export const serverInfo = (app: App): ServerInfo => ({
   termsUrl: app.config.termsUrl,
   publicKey: app.keys.publicKey,
   serverId: app.keys.serverId,
-  auth: { misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts, google: oauthEnabled(app, 'google'), x: oauthEnabled(app, 'x') },
+  auth: { misskey: app.config.misskey.enabled, misskeyHosts: app.config.misskey.allowedHosts, x: oauthEnabled(app, 'x') },
   limits: { ...app.config.limits },
   relay: app.config.relay,
   iceServers: app.config.iceServers,
