@@ -16,6 +16,7 @@ env:
 
 jobs:
   build-and-publish:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
