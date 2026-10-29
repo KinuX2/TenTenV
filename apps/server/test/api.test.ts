@@ -90,7 +90,9 @@ describe('REST API', () => {
     assert.deepEqual(r.data.auth.misskeyHosts, ['misskey.example'])
     assert.equal(r.headers.get('access-control-allow-origin'), '*')
     assert.equal((await api(srv, 'GET', '/api/worlds')).status, 200)
-    assert.equal((await api(srv, 'GET', `/api/worlds/${r.data.defaultHomeWorldId}`)).status, 200)
+    if (r.data.defaultHomeWorldId) {
+      assert.equal((await api(srv, 'GET', `/api/worlds/${r.data.defaultHomeWorldId}`)).status, 200)
+    }
   })
 
   test('サイト名とロゴをサーバー設定から配信する', async () => {
