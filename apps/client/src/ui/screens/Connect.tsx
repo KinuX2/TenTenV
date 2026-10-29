@@ -20,10 +20,10 @@ const DEFAULT_SERVER = import.meta.env.VITE_DEFAULT_SERVER ?? (import.meta.env.D
   ? `${location.protocol}//${location.hostname}:8787`
   : location.protocol === 'app:' ? 'https://tenten.marusankakusikakuonline.com' : location.origin)
 const PENDING_MIAUTH = 'ttv.miauth.pending'
-/** デスクトップ版は Google・X の許可の画面を既定のブラウザーで開き、終わるまで待つ（アプリ内の画面は Google に断られる） */
+/** デスクトップ版は X の許可の画面を既定のブラウザーで開き、終わるまで待つ（ふだんのブラウザーのログイン状態をそのまま使える） */
 const OAUTH_POLL_MS = 3000
 const OAUTH_WAIT_MS = 15 * 60_000
-const OAUTH_LABEL: Record<OAuthProvider, string> = { google: 'Google', x: 'X' }
+const OAUTH_LABEL: Record<OAuthProvider, string> = { x: 'X' }
 
 export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer }) => {
   useLang()
@@ -82,7 +82,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
     useApp.getState().setScreen({ kind: 'home' })
   }
 
-  // MiAuth・Google・X から戻ってきた
+  // MiAuth・X から戻ってきた
   useEffect(() => {
     const q = new URLSearchParams(location.search)
     const session = q.get('session')
@@ -189,7 +189,7 @@ export const Connect: React.FC<{ initialServer?: string }> = ({ initialServer })
   }
 
   const lang = useLang()
-  const oauthProviders = (['google', 'x'] as const).filter((p) => info?.auth[p])
+  const oauthProviders = (['x'] as const).filter((p) => info?.auth[p])
   const canSignIn = !!info && (info.auth.misskey || oauthProviders.length > 0)
   return (
     <div className="screen">

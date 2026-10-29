@@ -1,7 +1,7 @@
-// Google・X の OAuth 2.0（認可コード + PKCE）によるログイン。パスワードは受け取らず、
+// X の OAuth 2.0（認可コード + PKCE）によるログイン。パスワードは受け取らず、
 // 要求するのはプロフィールを読む権限だけ。アクセストークンはプロフィールを読んだらすぐ捨てる（保存しない）
 //
-// 1. start: Google・X の許可の画面の URL を返す。戻り先は親サーバーの /api/auth/:provider/callback
+// 1. start: X の許可の画面の URL を返す。戻り先は親サーバーの /api/auth/:provider/callback
 // 2. callback: 許可の画面から戻ってきた認可コードを預かり、クライアントの画面（callback）へ戻す。
 //    callback を指定しなかったとき（デスクトップ版は既定のブラウザーで開く）は「アプリに戻ってください」と出す
 // 3. finish: 認可コードをトークンに替えてプロフィールを読み、ログインさせる。まだ戻っていなければ待つように返す
@@ -13,7 +13,7 @@ import { badRequest, forbidden, HttpError, notFound, Reply } from './http'
 import { checkCallback } from './misskey'
 import { getUser, type UserRow } from './views'
 
-export type OAuthProviderName = 'google' | 'x'
+export type OAuthProviderName = 'x'
 
 interface Profile {
   /** 変わらない ID（ハンドルに使う） */
@@ -29,7 +29,7 @@ interface Provider {
   scope: string
   /** 許可の画面の URL に足すもの */
   extra?: Record<string, string>
-  /** トークンの取得でクライアントの秘密を Basic 認証で送るか（X）、本文に入れるか（Google） */
+  /** トークンの取得でクライアントの秘密を Basic 認証で送るか、本文に入れるか */
   basicAuth: boolean
   profile: (token: string, get: (url: string, token: string) => Promise<unknown>) => Promise<Profile | null>
 }
@@ -41,20 +41,6 @@ const httpsUrl = (v: unknown) => {
 }
 
 export const PROVIDERS: Record<OAuthProviderName, Provider> = {
-  google: {
-    label: 'Google',
-    authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
-    tokenUrl: 'https://oauth2.googleapis.com/token',
-    scope: 'openid profile',
-    extra: { prompt: 'select_account' },
-    basicAuth: false,
-    profile: async (token, get) => {
-      const u = (await get('https://openidconnect.googleapis.com/v1/userinfo', token)) as { sub?: unknown; name?: unknown; picture?: unknown }
-      const id = str(u?.sub, 255)
-      if (!id || !/^[0-9A-Za-z_-]+$/.test(id)) return null
-      return { id, name: str(u.name, 500)?.trim() || 'Google user', icon: httpsUrl(u.picture) }
-    },
-  },
   x: {
     label: 'X',
     authorizeUrl: 'https://x.com/i/oauth2/authorize',
@@ -84,7 +70,7 @@ export const oauthEnabled = (app: App, p: OAuthProviderName) => {
 }
 
 export const providerOf = (name: string): OAuthProviderName => {
-  if (name !== 'google' && name !== 'x') throw notFound('このログイン方法はありません')
+  if (name !== 'x') throw notFound('このログイン方法はありません')
   return name
 }
 
@@ -198,7 +184,7 @@ export const finishOAuth = async (app: App, p: OAuthProviderName, sessionIn: unk
   const handle = `${p}:${profile.id}`
   const existing = app.db.get<UserRow>('SELECT * FROM users WHERE handle = ?', handle)
   if (existing) {
-    // 自分でアイコンを上げていなければ、Google・X のアイコンに合わせる
+    // 自分でアイコンを上げていなければ、X のアイコンに合わせる
     if (!existing.icon_url?.startsWith('/files/')) app.db.run('UPDATE users SET icon_url = ? WHERE id = ?', profile.icon, existing.id)
     return getUser(app, existing.id)!
   }

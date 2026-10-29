@@ -6,8 +6,8 @@
 // GET    /api/info                                → ServerInfo
 // POST   /api/auth/misskey/start {host, callback} → {url, session}
 // POST   /api/auth/misskey/finish {session}       → {token, me: MeInfo}
-// POST   /api/auth/:provider/start {callback?}    → {url, session}   （provider は google | x。callback なしは finish で待つ）
-// GET    /api/auth/:provider/callback?code=&state= （Google・X の許可の画面からの戻り先。callback へ転送する）
+// POST   /api/auth/:provider/start {callback?}    → {url, session}   （provider は x。callback なしは finish で待つ）
+// GET    /api/auth/:provider/callback?code=&state= （X の許可の画面からの戻り先。callback へ転送する）
 // POST   /api/auth/:provider/finish {session}     → {token, me: MeInfo} | 202 {pending: true}
 // POST   /api/auth/logout
 // GET    /api/me                                  → MeInfo
