@@ -1,3 +1,5 @@
+[![Build and publish Docker image](https://github.com/nodokaha/TenTenV/actions/workflows/docker-ghcr.yml/badge.svg)](https://github.com/nodokaha/TenTenV/actions/workflows/docker-ghcr.yml)
+
 # TenTenV — VRSNS 向け WebXR フレームワーク
 
 ※プロジェクトを移譲してもらい、nodokahaが簡易的にこのプロジェクトの機能追加に対して監査と、メンテナンスを行なっています。歴史的経緯としてこのプロジェクトに詳しい訳ではないのでなにかあれば適宜相談してください
