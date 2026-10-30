@@ -4,8 +4,8 @@ TenTenV の親サーバーです。ログイン、プロフィール・フレン
 
 誰でも自分の親サーバーを立てられます。利用者はクライアントの起動時に接続先の親サーバーを選びます。
 
-- Node.js 24 以上（DB は Node 標準の `node:sqlite` を使うので、追加のデータベースは不要です）
-- 依存パッケージは `ws` と `fflate` だけです
+- Node.js 22.13 以上（ルートの `package.json` の `engines.node` と同じ要件。24 系を推奨）。DB は Node 標準の `node:sqlite` を使うので、追加のデータベースは不要です。
+- 主な実行時依存は `ws`（WebSocket）・`fflate`（ワールドパッケージ）・`tsx`（TypeScript の起動）です。
 
 ## 起動
 
@@ -90,6 +90,7 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `TTV_DATA` | データフォルダ（既定 `apps/server/data`）。設定ファイルはその隣の `server.config.json` を読みます |
 | `TTV_PUBLIC_URL` | `publicUrl` |
 | `TTV_CONFIG` | 設定ファイルの場所を直接指定する |
+| `TTV_X_CLIENT_ID` / `TTV_X_CLIENT_SECRET` | X ログインの OAuth クライアント情報（設定ファイルの値より優先） |
 
 ### 共有リンクのプレビュー（OGP）
 

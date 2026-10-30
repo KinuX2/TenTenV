@@ -15,7 +15,7 @@ import { Icon } from '../icons'
 import { Brand, brandingOf, fallbackLogoOnError } from '../Brand'
 
 /** Windows 版の最新のリリース（GitHub） */
-const WINDOWS_RELEASE_URL = 'https://github.com/KinuX2/TenTenV/releases/latest'
+const WINDOWS_RELEASE_URL = 'https://github.com/nodokaha/TenTenV/releases/latest'
 /** Windows 版（Electron）の中で開いているか: 同梱のクライアント（app:）か、アプリの XR ブリッジがある */
 const isWindowsApp = () => location.protocol === 'app:' || '__tentenvXR' in window
 

@@ -43,6 +43,6 @@ export const L = (ja: string, en: string) => (lang === 'ja' ? ja : en)
 // ---------------- リンク先 ----------------
 
 /** ソースコードの置き場所（あれば） */
-export const REPO_URL: string = import.meta.env.VITE_REPO_URL ?? 'https://github.com/KinuX2/TenTenV'
+export const REPO_URL: string = import.meta.env.VITE_REPO_URL ?? 'https://github.com/nodokaha/TenTenV'
 /** サイトのトップ（ドキュメントの一覧） */
 export const HOME = import.meta.env.BASE_URL
