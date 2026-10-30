@@ -64,6 +64,32 @@ docker compose up --build -d
 
 既存データを消す操作は `docker compose down -v` です。バックアップ時は volume 内の SQLite データベースと鍵も保存してください。
 
+## GHCR の Docker イメージ
+
+GitHub Actions が `main` への push と `v*` タグで Docker イメージをビルドし、GitHub Container Registry（GHCR）へ公開します。手動実行もできます。Pull Request ではテストのみを実行し、Docker イメージのビルド・公開は行いません。
+
+公開イメージ:
+
+```sh
+docker pull ghcr.io/nodokaha/tentenv:latest
+```
+
+Compose を使わずに起動する場合は、リポジトリのルートで次を実行します。公開 URL は実際に利用者がアクセスする HTTPS URL に置き換えてください。
+
+```sh
+docker run -d --name tentenv --restart unless-stopped \\
+  -p 127.0.0.1:8787:8787 \\
+  -e TTV_DATA=/data \\
+  -e TTV_CONFIG=/app/compose.config.json \\
+  -e TTV_PUBLIC_URL=https://vr.example.com \\
+  -v tentenv-data:/data \\
+  -v "$(pwd)/deploy/compose.config.json:/app/compose.config.json:ro" \\
+  -v "$(pwd)/deploy/branding:/app/branding:ro" \\
+  ghcr.io/nodokaha/tentenv:latest
+```
+
+この例ではデータを `tentenv-data` volume に保存します。HTTPS の終端と WebSocket の転送は Caddy / nginx などのリバースプロキシで設定してください。詳細は [親サーバーの運営ガイド](apps/server/README.md#本番での動かし方リバースプロキシと-tls) を参照してください。
+
 ## はじめかた（開発）
 
 ```sh
