@@ -4,7 +4,7 @@
 
 TenTenV（テンテンブイ）は、ソーシャル VR（VRSNS）をブラウザで動かすための、オープンソースで分散型の WebXR フレームワークです。親サーバー・クライアント・ワールド SDK・Windows 版をひとそろいで含み、そのまま自分たちの VRSNS として立ち上げられます。ブラウザだけで動き、VR ヘッドセット・PC・スマートフォンから同じワールドに集まれます。three.js / React Three Fiber / WebXR を使い、クライアント・サーバー・SDK はすべて TypeScript で書かれています。
 
-[Windows 版の最新版をダウンロード](https://github.com/nodokaha/TenTenV/releases/latest)
+[Windows 版の最新版をダウンロード](https://github.com/KinuX2/TenTenV/releases/latest)
 
 [オンラインドキュメント](https://nodokaha.github.io/TenTenV/)
 
