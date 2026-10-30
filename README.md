@@ -75,12 +75,7 @@ docker compose -f compose.ghcr.yaml pull
 docker compose -f compose.ghcr.yaml up -d
 ```
 
-更新するときも同じファイルを指定して pull してから再作成します。
-
-```sh
-docker compose -f compose.ghcr.yaml pull
-docker compose -f compose.ghcr.yaml up -d
-```
+更新時も同じコマンドで最新イメージを取得して再作成できます。
 
 公開イメージ:
 
