@@ -90,6 +90,7 @@ cp apps/server/server.config.example.json apps/server/server.config.json
 | `TTV_DATA` | データフォルダ（既定 `apps/server/data`）。設定ファイルはその隣の `server.config.json` を読みます |
 | `TTV_PUBLIC_URL` | `publicUrl` |
 | `TTV_CONFIG` | 設定ファイルの場所を直接指定する |
+| `TTV_X_CLIENT_ID` / `TTV_X_CLIENT_SECRET` | X ログインの OAuth クライアント情報（設定ファイルの値より優先） |
 
 ### 共有リンクのプレビュー（OGP）
 
