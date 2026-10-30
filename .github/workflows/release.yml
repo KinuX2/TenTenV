@@ -87,9 +87,9 @@ jobs:
 
             if [[ -n "$generated_notes" && "$existing_notes" != *"$marker"* ]]; then
               if [[ -n "$existing_notes" ]]; then
-                updated_notes="$(printf '%s\\n\\n%s\\n%s' "$existing_notes" "$marker" "$generated_notes")"
+                updated_notes="$(printf '%s\n\n%s\n%s' "$existing_notes" "$marker" "$generated_notes")"
               else
-                updated_notes="$(printf '%s\\n%s' "$marker" "$generated_notes")"
+                updated_notes="$(printf '%s\n%s' "$marker" "$generated_notes")"
               fi
               gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes "$updated_notes"
             fi
