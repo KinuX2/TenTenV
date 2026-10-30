@@ -68,6 +68,15 @@ docker compose up --build -d
 
 GitHub Actions が `main` への push と `v*` タグで Docker イメージをビルドし、GitHub Container Registry（GHCR）へ公開します。手動実行もできます。Pull Request ではテストのみを実行し、Docker イメージのビルド・公開は行いません。
 
+GHCR の公開イメージを使う場合は、ビルド用の既存 `compose.yaml` とは別に、[compose.ghcr.yaml](compose.ghcr.yaml) を使えます。こちらはローカルビルドを行わず、GHCR からイメージを取得します。既定は `latest` で、`.env` に `TTV_IMAGE_TAG=v0.1.16` のように指定すると特定のタグを固定できます。
+
+```sh
+docker compose -f compose.ghcr.yaml pull
+docker compose -f compose.ghcr.yaml up -d
+```
+
+更新時も同じコマンドで最新イメージを取得して再作成できます。
+
 公開イメージ:
 
 ```sh
