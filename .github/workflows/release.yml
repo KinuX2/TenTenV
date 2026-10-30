@@ -79,4 +79,4 @@ jobs:
         run: |
           mkdir -p release
           find release-assets -type f -exec cp {} release/ \;
-          gh release create "$TAG_NAME" release/* --title "$TAG_NAME" --generate-notes
+          gh release create "$TAG_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "$TAG_NAME" --generate-notes
