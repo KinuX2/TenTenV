@@ -79,4 +79,22 @@ jobs:
         run: |
           mkdir -p release
           find release-assets -type f -exec cp {} release/ \;
-          gh release create "$TAG_NAME" release/* --title "$TAG_NAME" --generate-notes
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists; updating it."
+            existing_notes="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq '.body // ""')"
+            generated_notes="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG_NAME" --jq '.body')"
+            marker="<!-- generated release notes for $TAG_NAME -->"
+
+            if [[ -n "$generated_notes" && "$existing_notes" != *"$marker"* ]]; then
+              if [[ -n "$existing_notes" ]]; then
+                updated_notes="$(printf '%s\n\n%s\n%s' "$existing_notes" "$marker" "$generated_notes")"
+              else
+                updated_notes="$(printf '%s\n%s' "$marker" "$generated_notes")"
+              fi
+              gh release edit "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --notes "$updated_notes"
+            fi
+
+            gh release upload "$TAG_NAME" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "$TAG_NAME" --generate-notes
+          fi
