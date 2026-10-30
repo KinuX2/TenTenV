@@ -122,7 +122,21 @@ let zip = null
 if (!args.includes('--no-zip')) {
   zip = join(dist, 'TenTenV-win32-x64.zip')
   rmSync(zip, { force: true })
-  const tar = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
-  execFileSync(tar, ['-a', '-c', '-f', zip, '-C', dist, 'TenTenV-win32-x64'], { stdio: 'inherit' })
+  const packageDir = join(dist, 'TenTenV-win32-x64')
+  if (process.platform === 'win32') {
+    // Windows runner の tar.exe は大きな Electron 配布物の圧縮中に異常終了することがあるため、
+    // Windows 標準の Compress-Archive を使う。
+    execFileSync('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      "$ErrorActionPreference = 'Stop'; Compress-Archive -LiteralPath $env:TTV_PACKAGE_DIR -DestinationPath $env:TTV_ZIP -CompressionLevel Optimal -Force",
+    ], {
+      stdio: 'inherit',
+      env: { ...process.env, TTV_PACKAGE_DIR: packageDir, TTV_ZIP: zip },
+    })
+  } else {
+    execFileSync('tar', ['-a', '-c', '-f', zip, '-C', dist, 'TenTenV-win32-x64'], { stdio: 'inherit' })
+  }
 }
 console.log(`\n[package] ${appDir}${zip ? `\n[package] ${zip}` : ''}`)
